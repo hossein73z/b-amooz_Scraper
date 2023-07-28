@@ -98,7 +98,7 @@ def find_word(word):
                     item.text.strip() for item in row.select_one("div > div > div > div.my-3") if item.text.strip()
                 ]
                 word_data['extra'] = {key: val for key, val in tuple(
-                    item.text.strip()[1:-1].split(": ") for item in row.select_one("div > div > div > div.text-muted")
+                    item.text.strip()[1:-1].split(":") for item in row.select_one("div > div > div > div.text-muted")
                     if item.text.strip()[1:-1]
                 )}
 
@@ -125,8 +125,8 @@ def create_examples_from_html(row: Tag, word_role: str):
         temp_result = [tuple(text.text.strip()[2:].strip() for text in exp_box.select_one("div") if text.text.strip())
                        for exp_box in row.select_one("div > div > div.mdc-typography > div > ul") if
                        type(exp_box) != NavigableString and exp_box is not None]
-        # result = {key: val for key, val in temp_result}
-        return temp_result
+        result = {key: val for key, val in temp_result}
+        return result
 
     else:
         return None
@@ -135,7 +135,7 @@ def create_examples_from_html(row: Tag, word_role: str):
 if __name__ == '__main__':
     file_path = sys.argv[1] if len(sys.argv[1]) > 1 else input(
         'Please write the file name or its path: ')
-start_row = int(sys.argv[2]) if len(sys.argv) > 2 else int(
-    input('Please insert the starting row number: '))
-# main(path=file_path, start=start_row - 1)
-find_word('lesen')
+    start_row = int(sys.argv[2]) if len(sys.argv) > 2 else int(
+        input('Please insert the starting row number: '))
+    # main(path=file_path, start=start_row - 1)
+    find_word('lesen')
