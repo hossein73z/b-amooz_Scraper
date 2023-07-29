@@ -75,10 +75,10 @@ def find_word(word):
 
     result_list: list[dict]
 
-    # Find rows container
+    # Find container for word data
     container: list[Tag] = [child for child in soup.find(class_="container mt-2") if type(child) != NavigableString]
 
-    # Divide list of rows by their type
+    # Divide list of rows by their role
     rows_list = []
     rows = []
     for div in container:
@@ -90,13 +90,23 @@ def find_word(word):
 
     # Create List of data to be returned
     word_list = []
-    for i, rows in enumerate(rows_list):
-        word_data = {'role': None, 'deutsch': None, 'tags': None, 'meaning_data': []}
+    for rows in rows_list:
+        # Each iteration represent one data about one role of the word eg: name, verb, preposition, etc.
+
+        word_data = {'role': None, 'deutsch': None, 'tags': None, 'meaning_data': [], 'notes': []}
         for index, row in enumerate(rows):
+            # Each iteration except the first one represent one whole box for all the word meanings
+
             if index == 0:
+                # The first box contains the details about the word itself
+
+                # The german version of the word
                 word_data['deutsch'] = row.select_one("div > div > div > h1").text.strip()
 
+                # What is the role of the word in a sentence
                 word_data['role'] = row.select_one("div > div > div > span").text.strip()[1:-1]
+
+                # Finding and adding tags
                 try:
                     word_data['tags'] = [item.text.strip() for item in
                                          row.find_all(class_="badge-pill badge-light ml-1")
@@ -104,6 +114,7 @@ def find_word(word):
                 except Exception as e:
                     print(f"word_data['tags']: {colorama.Fore.YELLOW + str(e) + colorama.Fore.RESET}")
 
+                # Finding and adding extra data
                 try:
                     word_data['extra'] = {key: val for key, val in tuple(
                         item.text.strip()[1:-1].split(":") for item
@@ -113,19 +124,26 @@ def find_word(word):
                     print(f"word_data['extra']: {colorama.Fore.YELLOW + str(e) + colorama.Fore.RESET}")
 
             else:
+                # The rest of the boxes contains data about different meanings of the word
+
+                # Finding the data of each meaning of the same role of the word
                 word_data['meaning_data'].append({
-                    "meanings": {
-                        'primary': row.select_one("div > div > div.row > div > h2 > strong").text.strip(),
-                        'secondary': row.select_one("div > div > div.row > div > h2 > small").text.strip()
-                    },
-                    "examples": create_examples_from_tag(row)
+
+                    # Adding the persian substitute and its secondary value to list of meanings of the role
+                    "meanings": {'primary': row.select_one("div > div > div.row > div > h2 > strong").text.strip(),
+                                 'secondary': row.select_one("div > div > div.row > div > h2 > small").text.strip()},
+
+                    # Adding examples of one meaning of the role
+                    "examples": get_examples(row),
+                    "notes": get_notes(row),
                 })
+
         word_list.append(word_data)
 
         pyperclip.copy(json.dumps(word_list))
 
 
-def create_examples_from_tag(row: Tag):
+def get_examples(row: Tag):
     def no_start_num(x: str) -> str:
         return re.sub(r'(^\d\.)|(^\d\. )', "", x).strip()
 
@@ -138,6 +156,24 @@ def create_examples_from_tag(row: Tag):
             d = no_start_num(example_pair_div.select_one('div:nth-child(1)').text.strip())
             p = no_start_num(example_pair_div.select_one('div:nth-child(2)').text.strip())
             result[d] = p
+
+    return result
+
+
+def get_notes(row: Tag):
+    result = []
+    try:
+
+        # Adding notes for each meaning
+        notes = []
+        for note_box in row.select("div.desc"):
+            note = {note_box.select_one("h6").text.strip(): note_box.select_one('span').text.strip()}
+            notes.append(note)
+
+        if notes:
+            result = notes
+    except Exception as e:
+        print(f"word_data['notes']: {colorama.Fore.YELLOW + str(e) + colorama.Fore.RESET}")
 
     return result
 
