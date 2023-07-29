@@ -118,26 +118,24 @@ def find_word(word):
 
 
 def create_examples_from_html(row: Tag, word_role: str):
+    def no_start_num(x: str) -> str:
+        return re.sub(r'(^\d\.)|(^\d\. )', "", x).strip()
+
     if word_role == "اسم" or word_role == "قید":
-        row_result = [
-            tuple(
-                re.sub(r'(^\d\.)|(^\d\. )', "", text.text.strip()).strip()
-                for text in exp_box.select_one("div") if text.text.strip()
-            ) for exp_box in row.find_all(class_='list-item')
-        ]
-        result = {key: val for key, val in row_result}
+        example_pair_divs = row.find_all(class_='row p-0 mdc-typography--body2')
 
     elif word_role == "فعل":
-        row_result = [
-            tuple(
-                re.sub(r'(^\d\.)|(^\d\. )', "", text.text.strip()).strip()
-                for text in exp_box.select_one("div") if text.text.strip()
-            ) for exp_box in row.find_all(class_='list-group-item')
-        ]
-        result = {key: val for key, val in row_result}
+        example_pair_divs = row.find_all(class_='row p-0 mdc-typography--body2 font-size-115')
 
     else:
-        result = None
+        example_pair_divs = None
+
+    result = {}
+    if example_pair_divs is not None:
+        for example_pair_div in example_pair_divs:
+            d = no_start_num(example_pair_div.select_one('div:nth-child(1)').text.strip())
+            p = no_start_num(example_pair_div.select_one('div:nth-child(2)').text.strip())
+            result[d] = p
 
     return result
 
@@ -148,4 +146,4 @@ if __name__ == '__main__':
     start_row = int(sys.argv[2]) if len(sys.argv) > 2 else int(
         input('Please insert the starting row number: '))
     # main(path=file_path, start=start_row - 1)
-    find_word('morgen')
+    find_word('lesen')
