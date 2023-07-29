@@ -106,7 +106,10 @@ def find_word(word):
             else:
 
                 word_data['meaning_data'].append({
-                    "meaning": row.select_one("div > div > div.row > div > h2 > strong").text.strip(),
+                    "meanings": {
+                        'primary': row.select_one("div > div > div.row > div > h2 > strong").text.strip(),
+                        'secondary': row.select_one("div > div > div.row > div > h2 > small").text.strip()
+                    },
                     "examples": create_examples_from_html(row, word_data['role'])
                 })
         word_list.append(word_data)
