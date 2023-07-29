@@ -1,5 +1,6 @@
 import csv
 import json
+import re
 import sys
 
 import pyperclip
@@ -115,21 +116,31 @@ def find_word(word):
 
 def create_examples_from_html(row: Tag, word_role: str):
     if word_role == "اسم":
-        temp_result = [tuple(text.text.strip()[2:].strip() for text in exp_box.select_one("div") if text.text.strip())
-                       for exp_box in row.select_one("div > div > div.mdc-typography > ul") if
-                       type(exp_box) != NavigableString and exp_box is not None]
-        result = {key: val for key, val in temp_result}
-        return result
+        row_result = [
+            tuple(
+                re.sub(r'(^\d\.)|(^\d\. )', "", text.text.strip()).strip()
+                for text in exp_box.select_one("div") if text.text.strip()
+            )
+            for exp_box in row.select_one("div > div > div.mdc-typography > ul") if
+            type(exp_box) != NavigableString and exp_box is not None
+        ]
+        result = {key: val for key, val in row_result}
 
     elif word_role == "فعل":
-        temp_result = [tuple(text.text.strip()[2:].strip() for text in exp_box.select_one("div") if text.text.strip())
-                       for exp_box in row.select_one("div > div > div.mdc-typography > div > ul") if
-                       type(exp_box) != NavigableString and exp_box is not None]
-        result = {key: val for key, val in temp_result}
-        return result
+        row_result = [
+            tuple(
+                re.sub(r'(^\d\.)|(^\d\. )', "", text.text.strip()).strip()
+                for text in exp_box.select_one("div") if text.text.strip()
+            )
+            for exp_box in row.select("div > div > div.mdc-typography > div > ul") if
+            type(exp_box) != NavigableString and exp_box is not None
+        ]
+        result = {key: val for key, val in row_result}
 
     else:
-        return None
+        result = None
+
+    return result
 
 
 if __name__ == '__main__':
