@@ -118,14 +118,12 @@ def find_word(word):
 
 
 def create_examples_from_html(row: Tag, word_role: str):
-    if word_role == "اسم":
+    if word_role == "اسم" or word_role == "قید":
         row_result = [
             tuple(
                 re.sub(r'(^\d\.)|(^\d\. )', "", text.text.strip()).strip()
                 for text in exp_box.select_one("div") if text.text.strip()
-            )
-            for exp_box in row.select_one("div > div > div.mdc-typography > ul") if
-            type(exp_box) != NavigableString and exp_box is not None
+            ) for exp_box in row.find_all(class_='list-item')
         ]
         result = {key: val for key, val in row_result}
 
@@ -134,9 +132,7 @@ def create_examples_from_html(row: Tag, word_role: str):
             tuple(
                 re.sub(r'(^\d\.)|(^\d\. )', "", text.text.strip()).strip()
                 for text in exp_box.select_one("div") if text.text.strip()
-            )
-            for exp_box in row.select("div > div > div.mdc-typography > div > ul") if
-            type(exp_box) != NavigableString and exp_box is not None
+            ) for exp_box in row.find_all(class_='list-group-item')
         ]
         result = {key: val for key, val in row_result}
 
@@ -152,4 +148,4 @@ if __name__ == '__main__':
     start_row = int(sys.argv[2]) if len(sys.argv) > 2 else int(
         input('Please insert the starting row number: '))
     # main(path=file_path, start=start_row - 1)
-    find_word('lesen')
+    find_word('morgen')
