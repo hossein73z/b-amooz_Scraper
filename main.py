@@ -93,42 +93,35 @@ def find_word(word):
         word_data = {'role': None, 'deutsch': None, 'tags': None, 'meaning_data': []}
         for index, row in enumerate(rows):
             if index == 0:
-                word_data['role'] = row.select_one("div > div > div > span").text.strip()[1:-1]
                 word_data['deutsch'] = row.select_one("div > div > div > h1").text.strip()
-                word_data['tags'] = [
-                    item.text.strip() for item in row.select_one("div > div > div > div.my-3") if item.text.strip()
-                ]
-                word_data['extra'] = {key: val for key, val in tuple(
-                    item.text.strip()[1:-1].split(":") for item in row.select_one("div > div > div > div.text-muted")
-                    if item.text.strip()[1:-1]
-                )}
+
+                word_data['role'] = row.select_one("div > div > div > span").text.strip()[1:-1]
+
+                word_data['tags'] = [item.text.strip() for item in row.find_all(class_="badge-pill badge-light ml-1")
+                                     if item.text.strip()]
+
+                word_data['extra'] = {key: val for key, val in tuple(item.text.strip()[1:-1].split(":") for item in
+                                                                     row.select_one("div > div > div > div.text-muted")
+                                                                     if item.text.strip()[1:-1])}
 
             else:
-
                 word_data['meaning_data'].append({
                     "meanings": {
                         'primary': row.select_one("div > div > div.row > div > h2 > strong").text.strip(),
                         'secondary': row.select_one("div > div > div.row > div > h2 > small").text.strip()
                     },
-                    "examples": create_examples_from_html(row, word_data['role'])
+                    "examples": create_examples_from_tag(row)
                 })
         word_list.append(word_data)
 
         pyperclip.copy(json.dumps(word_list))
 
 
-def create_examples_from_html(row: Tag, word_role: str):
+def create_examples_from_tag(row: Tag):
     def no_start_num(x: str) -> str:
         return re.sub(r'(^\d\.)|(^\d\. )', "", x).strip()
 
-    if word_role == "اسم" or word_role == "قید":
-        example_pair_divs = row.find_all(class_='row p-0 mdc-typography--body2')
-
-    elif word_role == "فعل":
-        example_pair_divs = row.find_all(class_='row p-0 mdc-typography--body2 font-size-115')
-
-    else:
-        example_pair_divs = None
+    example_pair_divs = row.find_all(class_='row p-0 mdc-typography--body2') + row.find_all(class_='row p-0 mdc-typography--body2 font-size-115')
 
     result = {}
     if example_pair_divs is not None:
@@ -146,4 +139,4 @@ if __name__ == '__main__':
     start_row = int(sys.argv[2]) if len(sys.argv) > 2 else int(
         input('Please insert the starting row number: '))
     # main(path=file_path, start=start_row - 1)
-    find_word('lesen')
+    find_word('von')
