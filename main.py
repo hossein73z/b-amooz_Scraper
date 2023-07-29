@@ -93,7 +93,7 @@ def find_word(word):
     for rows in rows_list:
         # Each iteration represent one data about one role of the word eg: name, verb, preposition, etc.
 
-        word_data = {'role': None, 'deutsch': None, 'tags': None, 'meaning_data': [], 'notes': []}
+        word_data = {'role': None, 'deutsch': None, 'tags': None, 'meaning_data': []}
         for index, row in enumerate(rows):
             # Each iteration except the first one represent one whole box for all the word meanings
 
@@ -167,7 +167,7 @@ def get_notes(row: Tag):
         # Adding notes for each meaning
         notes = []
         for note_box in row.select("div.desc"):
-            note = {note_box.select_one("h6").text.strip(): note_box.select_one('span').text.strip()}
+            note = {note_box.select_one("h6").text.strip(): [text.text.strip() for text in note_box.select_one('span')]}
             notes.append(note)
 
         if notes:
@@ -184,4 +184,4 @@ if __name__ == '__main__':
     start_row = int(sys.argv[2]) if len(sys.argv) > 2 else int(
         input('Please insert the starting row number: '))
     # main(path=file_path, start=start_row - 1)
-    find_word('von')
+    find_word('ab')
