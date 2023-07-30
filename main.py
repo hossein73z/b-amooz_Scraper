@@ -8,6 +8,8 @@ import pyperclip
 import requests
 from bs4 import BeautifulSoup, NavigableString, Tag
 
+from Word import Word
+
 
 def main(path: str, start: int) -> None:
     print(f'The file path is: {path}')
@@ -91,7 +93,7 @@ def find_word(word):
     # Create List of data to be returned
     word_list = []
     for rows in rows_list:
-        # Each iteration represent one data about one role of the word eg: name, verb, preposition, etc.
+        # Each iteration represent data about one role of the word eg: name, verb, preposition, etc.
 
         word_data = {'role': None, 'deutsch': None, 'tags': None, 'meaning_data': []}
         for index, row in enumerate(rows):
@@ -130,17 +132,17 @@ def find_word(word):
                 word_data['meaning_data'].append({
 
                     # Adding the persian substitute and its secondary value to list of meanings of the role
-                    "meanings": {'primary': row.select_one("div > div > div.row > div > h2 > strong").text.strip(),
-                                 'secondary': row.select_one("div > div > div.row > div > h2 > small").text.strip()},
+                    "meaning": {'primary': row.select_one("div > div > div.row > div > h2 > strong").text.strip(),
+                                'secondary': row.select_one("div > div > div.row > div > h2 > small").text.strip()},
 
                     # Adding examples of one meaning of the role
                     "examples": get_examples(row),
                     "notes": get_notes(row),
                 })
-
         word_list.append(word_data)
 
-        pyperclip.copy(json.dumps(word_list))
+    words = [Word(**word) for word in word_list]
+    return words
 
 
 def get_examples(row: Tag):
@@ -184,4 +186,4 @@ if __name__ == '__main__':
     start_row = int(sys.argv[2]) if len(sys.argv) > 2 else int(
         input('Please insert the starting row number: '))
     # main(path=file_path, start=start_row - 1)
-    find_word('ab')
+    find_word('sein')
