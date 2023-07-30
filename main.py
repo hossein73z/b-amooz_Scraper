@@ -70,6 +70,9 @@ def main(path: str, start: int) -> None:
 
 
 def find_word(word):
+
+    word = re.sub(r'^[dD][iIeEaA][rReEsS] ', '', word)
+
     # Retrieve and parse data from b-amooz.com
     dic_url = f"https://dic.b-amooz.com/de/dictionary/w?word={word}"
     response = requests.get(dic_url)
