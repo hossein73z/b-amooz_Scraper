@@ -1,87 +1,69 @@
+import asyncio
 import csv
-import json
 import re
 import sys
 
-import colorama
-import pyperclip
-import requests
-from bs4 import BeautifulSoup, NavigableString, Tag
+from bs4 import BeautifulSoup, Tag, NavigableString
+from colorama import Fore as f
+from httpx import AsyncClient
 
 from Word import Word
 
 
-def main(path: str, start: int) -> None:
+async def main(path: str, start: int) -> None:
     print(f'The file path is: {path}')
 
     # Opening the TSV file
-    with open(path, 'r', newline="", encoding='utf-8') as f:
-        reader = csv.reader(f, delimiter='\t')
+    with open(path, 'r', newline="", encoding='utf-8') as file:
+        reader = csv.reader(file, delimiter='\t')
 
-        # Iterating through rows
-        for index, row in enumerate(reader):
+        # Create list of tasks to be executed asynchronously
+        tasks = []
+        for index, row in enumerate(reader):  # Iterating through rows
             if index >= start:
                 word = row[0]
 
-                find_word(word)
+                # Call 'find_word()' function in each task
+                tasks.append(asyncio.create_task(find_word(word), name=word))
 
-                url = 'https://dic.b-amooz.com/de/dictionary/conjugation/v?verb=' + word
-                response = requests.get(url)
-                soup = BeautifulSoup(response.content, 'html.parser')
+        # Wait for tasks to be completed
+        result_set = await asyncio.gather(*tasks)
 
-                present_table = soup.select_one(
-                    "body > div.container.py-4.px-2.px-md-3.bg-white > div > div.card-body.px-0.pb-0 > div > div > div:nth-child(1) > div > div:nth-child(1) > table")
-                past_table = soup.select_one(
-                    "body > div.container.py-4.px-2.px-md-3.bg-white > div > div.card-body.px-0.pb-0 > div > div > div:nth-child(1) > div > div:nth-child(3) > table")
-
-                with open("template.html", "r") as template:
-                    html_template = template.read()
-
-                for i in (0, 2):
-                    for j in range(1, 7):
-                        table = present_table if i == 0 else past_table
-
-                        result = table.select_one(f"table > tr:nth-child({j}) > td:nth-child(2) > span")
-
-                        if result.attrs['class'][0] == 'normal':
-                            result = f"<span style=\"color: #000\">{result.text.strip()}</span>"
-                        elif result.attrs['class'][0] == 'irregular':
-                            result = f"<span style=\"color: red\">{result.text.strip()}</span>"
-                        else:
-                            result = f"<span style=\"color: blue\">{result.text.strip()}</span>"
-
-                        html_template = html_template.replace(f">present_{j}<" if i == 0 else f">past_{j}<",
-                                                              f">{result}<")
-
-                infinitive = soup.select_one(
-                    "body > div.container.py-4.px-2.px-md-3.bg-white > div > div.card-header.px-0 > div.font-size-95.d-flex.flex-md-nowrap.flex-wrap.px-3.text-right.conjugation-meta-box > div:nth-child(1) > span")
-                third_state = soup.select_one(
-                    "body > div.container.py-4.px-2.px-md-3.bg-white > div > div.card-header.px-0 > div.font-size-95.d-flex.flex-md-nowrap.flex-wrap.px-3.text-right.conjugation-meta-box > div:nth-child(3) > span")
-                past = soup.select_one(
-                    "body > div.container.py-4.px-2.px-md-3.bg-white > div > div.card-header.px-0 > div.font-size-95.d-flex.flex-md-nowrap.flex-wrap.px-3.text-right.conjugation-meta-box > div:nth-child(2) > span")
-                html_template = html_template.replace(">infinitive<", f'>{infinitive.text.strip()}<')
-                html_template = html_template.replace(">past<", f'>{past.text.strip()}<')
-                html_template = html_template.replace(">third_state<", f'>{third_state.text.strip()}<')
-
-                # Write the data to a CSV file
-                with open('output.csv', 'a', newline="", encoding='utf-8') as file:
-                    writer = csv.writer(file)
-                    writer.writerow([html_template])
+        # (TEMP) Print all 404 words
+        for item in result_set:
+            for key in item:
+                val = item[key]
+                if type(val) is not list:
+                    print(f'{key}: {item[key]}')
 
 
-def find_word(word):
+async def find_word(word) -> dict:
+    """
+    Takes a word as argument and extract its data from 'https://b-amooz.com'
+    :param word: A string like 'sehen', 'auto', ...
+    :return: A dict object with the stripped word as key and extracted data or None or 404 as value
+    """
 
-    word = re.sub(r'^[dD][iIeEaA][rReEsS] ', '', word)
+    # Cut the article from the beginning of the string
+    word = re.sub(r'^[dD][iIeEaA][rReEsS] ', '', word).strip()
 
-    # Retrieve and parse data from b-amooz.com
-    dic_url = f"https://dic.b-amooz.com/de/dictionary/w?word={word}"
-    response = requests.get(dic_url)
-    soup = BeautifulSoup(response.content, 'html.parser')
+    try:
+        # Retrieve and parse data from https://b-amooz.com
+        url = f"https://dic.b-amooz.com/de/dictionary/w?word={word}"
+        response = await AsyncClient().get(url, follow_redirects=True, timeout=60)
+        soup = BeautifulSoup(response, 'html.parser')
 
-    result_list: list[dict]
+        # Return 404 error if the string is not on the website as a german word
+        if response.status_code == 404:
+            print(f"{f.MAGENTA + word + f.RESET}: {f.RED + 'Error 404' + f.RESET}")
+            return {word: 404}
 
-    # Find container for word data
-    container: list[Tag] = [child for child in soup.find(class_="container mt-2") if type(child) != NavigableString]
+        # Find container for word data
+        container: list[Tag] = [child for child in soup.find(class_="container mt-2") if type(child) != NavigableString]
+
+    except Exception as e:
+        print(f"{f.MAGENTA + word + f.RESET}: {f.RED + str(e) + f.RESET}")
+        return {word: None}
 
     # Divide list of rows by their role
     rows_list = []
@@ -93,17 +75,15 @@ def find_word(word):
         else:
             rows.append(div)
 
-    # Create List of data to be returned
+    # Create List of word objects to be returned
     word_list = []
-    for rows in rows_list:
-        # Each iteration represent data about one role of the word eg: name, verb, preposition, etc.
+    for rows in rows_list:  # Each iteration represent data about one role of the word eg: name, verb, preposition, etc.
 
         word_data = {'role': None, 'deutsch': None, 'tags': None, 'meaning_data': []}
         for index, row in enumerate(rows):
             # Each iteration except the first one represent one whole box for all the word meanings
 
-            if index == 0:
-                # The first box contains the details about the word itself
+            if index == 0:  # The first box contains the details about the word itself
 
                 # The german version of the word
                 word_data['deutsch'] = row.select_one("div > div > div > h1").text.strip()
@@ -117,7 +97,7 @@ def find_word(word):
                                          row.find_all(class_="badge-pill badge-light ml-1")
                                          if item.text.strip()]
                 except Exception as e:
-                    print(f"word_data['tags']: {colorama.Fore.YELLOW + str(e) + colorama.Fore.RESET}")
+                    print(f"{f.MAGENTA + word + f.RESET}: word_data['tags']: {f.YELLOW + str(e) + f.RESET}")
 
                 # Finding and adding extra data
                 try:
@@ -125,11 +105,10 @@ def find_word(word):
                         item.text.strip()[1:-1].split(":") for item
                         in row.select_one("div > div > div > div.text-muted")
                         if item.text.strip()[1:-1])}
-                except Exception as e:
-                    print(f"word_data['extra']: {colorama.Fore.YELLOW + str(e) + colorama.Fore.RESET}")
+                except TypeError:
+                    pass
 
-            else:
-                # The rest of the boxes contains data about different meanings of the word
+            else:  # The rest of the boxes contains data about different meanings of the word
 
                 # Finding the data of each meaning of the same role of the word
                 word_data['meaning_data'].append({
@@ -144,8 +123,9 @@ def find_word(word):
                 })
         word_list.append(word_data)
 
+    # Create Word object and return it
     words = [Word(**word) for word in word_list]
-    return words
+    return {word: words}
 
 
 def get_examples(row: Tag):
@@ -178,15 +158,12 @@ def get_notes(row: Tag):
         if notes:
             result = notes
     except Exception as e:
-        print(f"word_data['notes']: {colorama.Fore.YELLOW + str(e) + colorama.Fore.RESET}")
+        print(f"word_data['notes']: {f.YELLOW + str(e) + f.RESET}")
 
     return result
 
 
 if __name__ == '__main__':
-    file_path = sys.argv[1] if len(sys.argv[1]) > 1 else input(
-        'Please write the file name or its path: ')
-    start_row = int(sys.argv[2]) if len(sys.argv) > 2 else int(
-        input('Please insert the starting row number: '))
-    # main(path=file_path, start=start_row - 1)
-    find_word('sein')
+    file_path = sys.argv[1] if len(sys.argv) > 1 else input('Please write the file name or its path: ')
+    start_row = int(sys.argv[2]) if len(sys.argv) > 2 else int(input('Please insert the starting row number: '))
+    asyncio.run(main(path=file_path, start=start_row - 1))
