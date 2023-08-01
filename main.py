@@ -1,5 +1,6 @@
 import asyncio
 import csv
+import datetime
 import re
 import sys
 
@@ -11,7 +12,8 @@ from Word import Word
 
 
 async def main(path: str, start: int) -> None:
-    print(f'The file path is: {path}')
+    print(f'The file path is: {f.MAGENTA + path + f.RESET}')
+    print(f'First word at row {f.MAGENTA + str(start + 1) + f.RESET}')
 
     # Opening the TSV file
     with open(path, 'r', newline="", encoding='utf-8') as file:
@@ -19,22 +21,39 @@ async def main(path: str, start: int) -> None:
 
         # Create list of tasks to be executed asynchronously
         tasks = []
-        for index, row in enumerate(reader):  # Iterating through rows
+        for index, row in enumerate(reader):  # Iterating through the rows of the file
             if index >= start:
                 word = row[0]
 
                 # Call 'find_word()' function in each task
                 tasks.append(asyncio.create_task(find_word(word), name=word))
 
-        # Wait for tasks to be completed
-        result_set = await asyncio.gather(*tasks)
+        print(f'Starting extraction on {f.MAGENTA + str(len(tasks)) + f.RESET} words')
 
-        # (TEMP) Print all 404 words
-        for item in result_set:
-            for key in item:
-                val = item[key]
-                if type(val) is not list:
-                    print(f'{key}: {item[key]}')
+        # Record time
+        start_time = datetime.datetime.now()
+
+        # Wait for tasks to be completed
+        temp = await asyncio.gather(*tasks)
+        results: dict = {key: val for result in temp for key, val in result.items()}
+
+        # Calculating process duration
+        duration = datetime.datetime.now() - start_time
+
+        # Separate the results
+        error_404_dict = {key: val for key, val in results.items() if type(val) == int}
+        error_net_dict = {key: val for key, val in results.items() if val is None}
+        error_non_dict = {key: val for key, val in results.items() if type(val) is list}
+
+        # Print summary
+        print(f.GREEN + str(len(error_non_dict)) + f.RESET + ' data extracted in ' + f.GREEN + str(
+            duration.seconds) + f.RESET + ' seconds.')
+        print(f"Couldn't find {f.RED + str(len(error_404_dict)) + f.RESET} words:")
+        for error in error_404_dict:
+            print(error)
+        print(f'Network error on {f.RED + str(len(error_net_dict)) + f.RESET} words:')
+        for error in error_net_dict:
+            print(error)
 
 
 async def find_word(word) -> dict:
@@ -55,7 +74,7 @@ async def find_word(word) -> dict:
 
         # Return 404 error if the string is not on the website as a german word
         if response.status_code == 404:
-            print(f"{f.MAGENTA + word + f.RESET}: {f.RED + 'Error 404' + f.RESET}")
+            # print(f"{f.MAGENTA + word + f.RESET}: {f.RED + 'Error 404' + f.RESET}")
             return {word: 404}
 
         # Find container for word data
