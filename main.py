@@ -41,19 +41,24 @@ async def main(path: str, start: int) -> None:
         duration = datetime.datetime.now() - start_time
 
         # Separate the results
-        error_404_dict = {key: val for key, val in results.items() if type(val) == int}
-        error_net_dict = {key: val for key, val in results.items() if val is None}
+        error_404_list = [key for key, val in results.items() if type(val) == int]
+        error_net_list = [key for key, val in results.items() if val is None]
         error_non_dict = {key: val for key, val in results.items() if type(val) is list}
 
         # Print summary
         print(f.GREEN + str(len(error_non_dict)) + f.RESET + ' data extracted in ' + f.GREEN + str(
             duration.seconds) + f.RESET + ' seconds.')
-        print(f"Couldn't find {f.RED + str(len(error_404_dict)) + f.RESET} words:")
-        for error in error_404_dict:
+        print(f"Couldn't find {f.RED + str(len(error_404_list)) + f.RESET} words:")
+        for error in error_404_list:
             print(error)
-        print(f'Network error on {f.RED + str(len(error_net_dict)) + f.RESET} words:')
-        for error in error_net_dict:
+        print(f'Network error on {f.RED + str(len(error_net_list)) + f.RESET} words:')
+        for error in error_net_list:
             print(error)
+
+        if error_404_list:
+            print(f.YELLOW + 'Starting words correction' + f.RESET)
+            corrected_words = await correct_words(error_404_list)
+            print(corrected_words)
 
 
 async def find_word(word) -> dict:
@@ -180,6 +185,42 @@ def get_notes(row: Tag):
         print(f"word_data['notes']: {f.YELLOW + str(e) + f.RESET}")
 
     return result
+
+
+async def correct_words(words: list[str]):
+    """
+    Keeps asking user to correct the 404_error words till there's no error
+    :param words: List of words
+    :return: extracted words data as dictionary
+    """
+    corrected_words = []
+    for word in words:
+        corrected_word = input(f'Please insert the correct form of {f.MAGENTA + word + f.RESET}. Type "c" to skip: ')
+        if corrected_word != 'c' and corrected_word != 'C':
+            corrected_words.append(corrected_word)
+
+    tasks = [asyncio.create_task(find_word(corrected_word), name=corrected_word) for corrected_word in corrected_words]
+
+    # Store starting time
+    start_time = datetime.datetime.now()
+
+    # Wait for tasks to be completed
+    temp = await asyncio.gather(*tasks)
+    results: dict = {key: val for result in temp for key, val in result.items()}
+
+    # Calculating process duration
+    duration = datetime.datetime.now() - start_time
+    print('Finished in ' + f.GREEN + str(duration.seconds) + f.RESET + ' seconds.')
+
+    # Separate the results
+    error_404_list = [key for key, val in results.items() if type(val) == int]
+    error_net_list = [key for key, val in results.items() if val is None]
+    error_non_dict = {key: val for key, val in results.items() if type(val) is list}
+
+    if error_404_list:
+        error_non_dict.update(await correct_words(error_404_list))
+
+    return error_non_dict
 
 
 if __name__ == '__main__':
