@@ -19,14 +19,14 @@ async def main(path: str, start: int) -> None:
     with open(path, 'r', newline="", encoding='utf-8') as file:
         reader = csv.reader(file, delimiter='\t')
 
-        # Create list of tasks to be executed asynchronously
-        tasks = []
+        # Create list of words and removing duplicates
+        words = set()
         for index, row in enumerate(reader):  # Iterating through the rows of the file
             if index >= start:
-                word = row[0]
+                words.add(row[0].lower())
 
-                # Call 'find_word()' function in each task
-                tasks.append(asyncio.create_task(find_word(word), name=word))
+        # Create list of tasks to be executed asynchronously
+        tasks = [asyncio.create_task(find_word(word), name=word) for word in words]
 
         print(f'Starting extraction on {f.MAGENTA + str(len(tasks)) + f.RESET} words')
 
@@ -57,8 +57,7 @@ async def main(path: str, start: int) -> None:
 
         if error_404_list:
             print(f.YELLOW + 'Starting words correction' + f.RESET)
-            corrected_words = await correct_words(error_404_list)
-            print(corrected_words)
+            error_non_dict.update(await correct_words(error_404_list))
 
 
 async def find_word(word) -> dict:
@@ -67,6 +66,40 @@ async def find_word(word) -> dict:
     :param word: A string like 'sehen', 'auto', ...
     :return: A dict object with the stripped word as key and extracted data or None or 404 as value
     """
+
+    def get_examples(example_row: Tag):
+        def no_start_num(x: str) -> str:
+            return re.sub(r'(^\d\.)|(^\d\. )', "", x).strip()
+
+        example_pair_divs = example_row.find_all(class_='row p-0 mdc-typography--body2'
+                                                 ) + example_row.find_all(class_='row p-0 mdc-typography--body2 font-size-115')
+
+        result = {}
+        if example_pair_divs is not None:
+            for example_pair_div in example_pair_divs:
+                d = no_start_num(example_pair_div.select_one('div:nth-child(1)').text.strip())
+                p = no_start_num(example_pair_div.select_one('div:nth-child(2)').text.strip())
+                result[d] = p
+
+        return result
+
+    def get_notes(note_row: Tag):
+        result = []
+        try:
+
+            # Adding notes for each meaning
+            notes = []
+            for note_box in note_row.select("div.desc"):
+                note = {
+                    note_box.select_one("h6").text.strip(): [text.text.strip() for text in note_box.select_one('span')]}
+                notes.append(note)
+
+            if notes:
+                result = notes
+        except Exception as e:
+            print(f"word_data['notes']: {f.YELLOW + str(e) + f.RESET}")
+
+        return result
 
     # Cut the article from the beginning of the string
     word = re.sub(r'^[dD][iIeEaA][rReEsS] ', '', word).strip()
@@ -150,41 +183,6 @@ async def find_word(word) -> dict:
     # Create Word object and return it
     words = [Word(**word) for word in word_list]
     return {word: words}
-
-
-def get_examples(row: Tag):
-    def no_start_num(x: str) -> str:
-        return re.sub(r'(^\d\.)|(^\d\. )', "", x).strip()
-
-    example_pair_divs = row.find_all(class_='row p-0 mdc-typography--body2'
-                                     ) + row.find_all(class_='row p-0 mdc-typography--body2 font-size-115')
-
-    result = {}
-    if example_pair_divs is not None:
-        for example_pair_div in example_pair_divs:
-            d = no_start_num(example_pair_div.select_one('div:nth-child(1)').text.strip())
-            p = no_start_num(example_pair_div.select_one('div:nth-child(2)').text.strip())
-            result[d] = p
-
-    return result
-
-
-def get_notes(row: Tag):
-    result = []
-    try:
-
-        # Adding notes for each meaning
-        notes = []
-        for note_box in row.select("div.desc"):
-            note = {note_box.select_one("h6").text.strip(): [text.text.strip() for text in note_box.select_one('span')]}
-            notes.append(note)
-
-        if notes:
-            result = notes
-    except Exception as e:
-        print(f"word_data['notes']: {f.YELLOW + str(e) + f.RESET}")
-
-    return result
 
 
 async def correct_words(words: list[str]):
