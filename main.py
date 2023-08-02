@@ -28,7 +28,7 @@ async def main(path: str, start: int) -> None:
         # Create list of tasks to be executed asynchronously
         tasks = [asyncio.create_task(find_word(word), name=word) for word in words]
 
-        print(f'Starting extraction on {f.MAGENTA + str(len(tasks)) + f.RESET} words')
+        print(f'Start scraping for {f.MAGENTA + str(len(tasks)) + f.RESET} words')
 
         # Record time
         start_time = datetime.datetime.now()
@@ -41,9 +41,9 @@ async def main(path: str, start: int) -> None:
         duration = datetime.datetime.now() - start_time
 
         # Separate the results
-        error_404_list = [key for key, val in results.items() if type(val) == int]
-        error_net_list = [key for key, val in results.items() if val is None]
-        error_non_dict = {key: val for key, val in results.items() if type(val) is list}
+        error_404_list: list = [key for key, val in results.items() if type(val) == int]
+        error_net_set: set = set(key for key, val in results.items() if val is None)
+        error_non_dict: dict = {key: val for key, val in results.items() if type(val) is list}
 
         # Print summary
         print(f.GREEN + str(len(error_non_dict)) + f.RESET + ' data extracted in ' + f.GREEN + str(
@@ -51,13 +51,29 @@ async def main(path: str, start: int) -> None:
         print(f"Couldn't find {f.RED + str(len(error_404_list)) + f.RESET} words:")
         for error in error_404_list:
             print(error)
-        print(f'Network error on {f.RED + str(len(error_net_list)) + f.RESET} words:')
-        for error in error_net_list:
+        print(f'Network error on {f.RED + str(len(error_net_set)) + f.RESET} words:')
+        for error in error_net_set:
             print(error)
 
         if error_404_list:
             print(f.YELLOW + 'Starting words correction' + f.RESET)
-            error_non_dict.update(await correct_words(error_404_list))
+            corrected_dicts = await correct_words(error_404_list)
+            error_non_dict.update(corrected_dicts['error_non_dict'])
+            error_net_set.update(corrected_dicts['error_net_set'])
+
+        if error_net_set:
+            confirmation = input("Do you want to retry the words with network problem? (y/n) ")
+            while True:
+                if confirmation in ('y', "Y"):
+                    # TBC
+                    break
+                elif confirmation in ('y', "Y"):
+                    # TBC
+                    break
+
+                else:
+                    confirmation = input("I didn't understand that. "
+                                         + "Do you want to retry the words with network problem? (Type 'y' or 'n') ")
 
 
 async def find_word(word) -> dict:
@@ -72,7 +88,8 @@ async def find_word(word) -> dict:
             return re.sub(r'(^\d\.)|(^\d\. )', "", x).strip()
 
         example_pair_divs = example_row.find_all(class_='row p-0 mdc-typography--body2'
-                                                 ) + example_row.find_all(class_='row p-0 mdc-typography--body2 font-size-115')
+                                                 ) + example_row.find_all(
+            class_='row p-0 mdc-typography--body2 font-size-115')
 
         result = {}
         if example_pair_divs is not None:
@@ -96,8 +113,8 @@ async def find_word(word) -> dict:
 
             if notes:
                 result = notes
-        except Exception as e:
-            print(f"word_data['notes']: {f.YELLOW + str(e) + f.RESET}")
+        except Exception as error:
+            print(f"word_data['notes']: {f.YELLOW + str(error) + f.RESET}")
 
         return result
 
@@ -185,17 +202,22 @@ async def find_word(word) -> dict:
     return {word: words}
 
 
-async def correct_words(words: list[str]):
+async def correct_words(words: list[str], error_type: str = '404') -> dict:
     """
     Keeps asking user to correct the 404_error words till there's no error
     :param words: List of words
+    :param error_type: Type of the error of the words list. Could be '404' or 'net'. Default is '404'
     :return: extracted words data as dictionary
     """
+
     corrected_words = []
-    for word in words:
-        corrected_word = input(f'Please insert the correct form of {f.MAGENTA + word + f.RESET}. Type "c" to skip: ')
-        if corrected_word != 'c' and corrected_word != 'C':
-            corrected_words.append(corrected_word)
+    if error_type == '404':
+        for word in words:
+            corrected_word = input(f'Insert the correct form of {f.MAGENTA + word + f.RESET}. Type "c" to skip: ')
+            if corrected_word != 'c' and corrected_word != 'C':
+                corrected_words.append(corrected_word)
+    else:
+        corrected_words = words
 
     tasks = [asyncio.create_task(find_word(corrected_word), name=corrected_word) for corrected_word in corrected_words]
 
@@ -208,17 +230,21 @@ async def correct_words(words: list[str]):
 
     # Calculating process duration
     duration = datetime.datetime.now() - start_time
-    print('Finished in ' + f.GREEN + str(duration.seconds) + f.RESET + ' seconds.')
+    print(f.GREEN + str(len(results)) + f.RESET + ' data extracted in ' + f.GREEN + str(
+        duration.seconds) + f.RESET + ' seconds.')
 
     # Separate the results
-    error_404_list = [key for key, val in results.items() if type(val) == int]
-    error_net_list = [key for key, val in results.items() if val is None]
-    error_non_dict = {key: val for key, val in results.items() if type(val) is list}
+    error_404_list: list = [key for key, val in results.items() if type(val) == int]
+    error_net_set: set = set(key for key, val in results.items() if val is None)
+    error_non_dict: dict = {key: val for key, val in results.items() if type(val) is list}
 
     if error_404_list:
-        error_non_dict.update(await correct_words(error_404_list))
+        print(f.YELLOW + f'Starting words correction for {f.RED + str(len(error_404_list)) + f.RESET} words' + f.RESET)
+        corrected_dicts = await correct_words(error_404_list)
+        error_non_dict.update(corrected_dicts['error_non_dict'])
+        error_net_set.update(corrected_dicts['error_net_set'])
 
-    return error_non_dict
+    return {'error_non_dict': error_non_dict, 'error_net_set': error_net_set}
 
 
 if __name__ == '__main__':
