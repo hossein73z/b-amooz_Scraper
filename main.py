@@ -41,39 +41,44 @@ async def main(path: str, start: int) -> None:
         duration = datetime.datetime.now() - start_time
 
         # Separate the results
-        error_404_list: list = [key for key, val in results.items() if type(val) == int]
-        error_net_set: set = set(key for key, val in results.items() if val is None)
-        error_non_dict: dict = {key: val for key, val in results.items() if type(val) is list}
+        errors_404: set = set(key for key, val in results.items() if type(val) == int)
+        errors_net: set = set(key for key, val in results.items() if val is None)
+        errors_non: dict = {key: val for key, val in results.items() if type(val) is list}
 
         # Print summary
-        print(f.GREEN + str(len(error_non_dict)) + f.RESET + ' data extracted in ' + f.GREEN + str(
+        print(f.GREEN + str(len(errors_non)) + f.RESET + ' data extracted in ' + f.GREEN + str(
             duration.seconds) + f.RESET + ' seconds.')
-        print(f"Couldn't find {f.RED + str(len(error_404_list)) + f.RESET} words:")
-        for error in error_404_list:
+        print(f"Couldn't find {f.RED + str(len(errors_404)) + f.RESET} words:")
+        for error in errors_404:
             print(error)
-        print(f'Network error on {f.RED + str(len(error_net_set)) + f.RESET} words:')
-        for error in error_net_set:
+        print(f'Network error on {f.RED + str(len(errors_net)) + f.RESET} words:')
+        for error in errors_net:
             print(error)
 
-        if error_404_list:
-            print(f.YELLOW + 'Starting words correction' + f.RESET)
-            corrected_dicts = await correct_words(error_404_list)
-            error_non_dict.update(corrected_dicts['error_non_dict'])
-            error_net_set.update(corrected_dicts['error_net_set'])
-
-        if error_net_set:
+        if errors_net:
             confirmation = input("Do you want to retry the words with network problem? (y/n) ")
             while True:
                 if confirmation in ('y', "Y"):
-                    # TBC
+                    print(f.YELLOW + 'Retrying failed attempts ...' + f.RESET)
+                    corrected_dicts = await correct_errors(errors_net, errors_type='net')
+                    errors_non.update(corrected_dicts['errors_non'])
+                    errors_404.update(corrected_dicts['errors_404'])
+                    errors_net.update(corrected_dicts['errors_net'])
                     break
-                elif confirmation in ('y', "Y"):
+
+                elif confirmation in ('n', "N"):
                     # TBC
                     break
 
                 else:
                     confirmation = input("I didn't understand that. "
                                          + "Do you want to retry the words with network problem? (Type 'y' or 'n') ")
+
+        if errors_404:
+            print(f.YELLOW + 'Starting words correction' + f.RESET)
+            corrected_dicts = await correct_errors(errors_404)
+            errors_non.update(corrected_dicts['errors_non'])
+            errors_net.update(corrected_dicts['errors_net'])
 
 
 async def find_word(word) -> dict:
@@ -202,21 +207,24 @@ async def find_word(word) -> dict:
     return {word: words}
 
 
-async def correct_words(words: list[str], error_type: str = '404') -> dict:
+async def correct_errors(words: set[str], errors_type: str = '404', retry: int = 5) -> dict:
     """
     Keeps asking user to correct the 404_error words till there's no error
+    :param retry: Number of retry allowed. Default is 5
     :param words: List of words
-    :param error_type: Type of the error of the words list. Could be '404' or 'net'. Default is '404'
+    :param errors_type: Type of the error of the words list. Could be '404' or 'net'. Default is '404'
     :return: extracted words data as dictionary
     """
 
     corrected_words = []
-    if error_type == '404':
-        for word in words:
-            corrected_word = input(f'Insert the correct form of {f.MAGENTA + word + f.RESET}. Type "c" to skip: ')
+    if errors_type == '404':
+        for i, word in enumerate(words):
+            corrected_word = input(
+                f'{i + 1}. Insert the correct form of {f.MAGENTA + word + f.RESET}. Type "c" to skip: ')
             if corrected_word != 'c' and corrected_word != 'C':
                 corrected_words.append(corrected_word)
     else:
+        print(f'{f.YELLOW}Retry number {6 - retry} on failed attempts ...{f.RESET}')
         corrected_words = words
 
     tasks = [asyncio.create_task(find_word(corrected_word), name=corrected_word) for corrected_word in corrected_words]
@@ -234,17 +242,28 @@ async def correct_words(words: list[str], error_type: str = '404') -> dict:
         duration.seconds) + f.RESET + ' seconds.')
 
     # Separate the results
-    error_404_list: list = [key for key, val in results.items() if type(val) == int]
-    error_net_set: set = set(key for key, val in results.items() if val is None)
-    error_non_dict: dict = {key: val for key, val in results.items() if type(val) is list}
+    errors_404: set = set(key for key, val in results.items() if type(val) == int)
+    errors_net: set = set(key for key, val in results.items() if val is None)
+    errors_non: dict = {key: val for key, val in results.items() if type(val) is list}
 
-    if error_404_list:
-        print(f.YELLOW + f'Starting words correction for {f.RED + str(len(error_404_list)) + f.RESET} words' + f.RESET)
-        corrected_dicts = await correct_words(error_404_list)
-        error_non_dict.update(corrected_dicts['error_non_dict'])
-        error_net_set.update(corrected_dicts['error_net_set'])
+    if errors_net and errors_type == 'net':
+        if retry <= 0:
+            print(f.RED + "Maximum allowed retry reached." + f.RESET)
+            return {'errors_non': errors_non, 'errors_net': errors_net, 'errors_404': errors_404}
+        else:
+            corrected_dicts = await correct_errors(errors_net, errors_type='net', retry=retry - 1)
+            errors_non.update(corrected_dicts['errors_non'])
+            errors_404.update(corrected_dicts['errors_404'])
+            errors_net = corrected_dicts['errors_net']
 
-    return {'error_non_dict': error_non_dict, 'error_net_set': error_net_set}
+    if errors_404 and errors_type == '404':
+        print(f.YELLOW + f'Starting words correction for {f.RED + str(len(errors_404)) + f.YELLOW} words' + f.RESET)
+        corrected_dicts = await correct_errors(errors_404)
+        errors_non.update(corrected_dicts['errors_non'])
+        errors_net.update(corrected_dicts['errors_net'])
+        errors_404 = corrected_dicts['errors_404']
+
+    return {'errors_non': errors_non, 'errors_net': errors_net, 'errors_404': errors_404}
 
 
 if __name__ == '__main__':
