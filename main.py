@@ -175,6 +175,11 @@ async def find_word(word: str) -> dict:
                 # What is the role of the word in a sentence
                 word_data['role'] = row.select_one("div > div > div > span").text.strip()[1:-1]
 
+                # Adding link for verb conjugation
+                if word_data['role'] == 'فعل':
+                    word_data['conjugation_url'] = \
+                        row.select_one('div > div > div > div.mx-n2.pt-2.mb-amp-3').find('a')['href']
+
                 # Finding and adding tags
                 try:
                     word_data['tags'] = [item.text.strip() for item in
