@@ -15,80 +15,86 @@ async def main(path: str, start: int) -> None:
     print(f'The file path is: {f.MAGENTA + path + f.RESET}')
     print(f'First word at row {f.MAGENTA + str(start + 1) + f.RESET}')
 
+    # Create list of words and removing duplicates
+    words = set()
+
     # Opening the TSV file
     with open(path, 'r', newline="", encoding='utf-8') as file:
         reader = csv.reader(file, delimiter='\t')
 
-        # Create list of words and removing duplicates
-        words = set()
         for index, row in enumerate(reader):  # Iterating through the rows of the file
             if index >= start:
                 words.add(row[0].lower())
 
-        # Create list of tasks to be executed asynchronously
-        tasks = [asyncio.create_task(find_word(word), name=word) for word in words]
+    # Create list of tasks to be executed asynchronously
+    tasks = [asyncio.create_task(find_word(word), name=word) for word in words]
 
-        print(f'Start scraping for {f.MAGENTA + str(len(tasks)) + f.RESET} words')
+    print(f'Start scraping for {f.MAGENTA + str(len(tasks)) + f.RESET} words')
 
-        # Record time
-        start_time = datetime.datetime.now()
+    # Record time
+    start_time = datetime.datetime.now()
 
-        # Wait for tasks to be completed
-        temp = await asyncio.gather(*tasks)
-        results: dict = {key: val for result in temp for key, val in result.items()}
+    # Wait for tasks to be completed
+    results: dict = {key: val for result in await asyncio.gather(*tasks) for key, val in result.items()}
 
-        # Calculating process duration
-        duration = datetime.datetime.now() - start_time
+    # Calculating process duration
+    duration = datetime.datetime.now() - start_time
 
-        # Separate the results
-        errors_404: set = set(key for key, val in results.items() if type(val) == int)
-        errors_net: set = set(key for key, val in results.items() if val is None)
-        errors_non: dict = {key: val for key, val in results.items() if type(val) is list}
+    # Separate the results
 
-        # Print summary
-        print(f.GREEN + str(len(errors_non)) + f.RESET + ' data extracted in ' + f.GREEN + str(
-            duration.seconds) + f.RESET + ' seconds.')
-        print(f"Couldn't find {f.RED + str(len(errors_404)) + f.RESET} words:")
-        for error in errors_404:
-            print(error)
-        print(f'Network error on {f.RED + str(len(errors_net)) + f.RESET} words:')
-        for error in errors_net:
-            print(error)
+    # errors_404: Mistyped words
+    errors_404: set = set(key for key, val in results.items() if type(val) == int)
+    # errors_net: Words with network error
+    errors_net: set = set(key for key, val in results.items() if val is None)
+    # errors_non: Successfully scraped words
+    errors_non: dict = {key: val for key, val in results.items() if type(val) is list}
 
-        if errors_net:
-            confirmation = input("Do you want to retry the words with network problem? (y/n) ")
-            while True:
-                if confirmation in ('y', "Y"):
-                    print(f.YELLOW + 'Retrying failed attempts ...' + f.RESET)
-                    corrected_dicts = await correct_errors(errors_net, errors_type='net')
-                    errors_non.update(corrected_dicts['errors_non'])
-                    errors_404.update(corrected_dicts['errors_404'])
-                    errors_net.update(corrected_dicts['errors_net'])
-                    break
+    # Print summary
+    print(f.GREEN + str(len(errors_non)) + f.RESET + ' data extracted in ' + f.GREEN + str(
+        duration.seconds) + f.RESET + ' seconds.')
+    print(f"Couldn't find {f.RED + str(len(errors_404)) + f.RESET} words:")
+    for error in errors_404:
+        print(error)
+    print(f'Network error on {f.RED + str(len(errors_net)) + f.RESET} words:')
+    for error in errors_net:
+        print(error)
 
-                elif confirmation in ('n', "N"):
-                    # TBC
-                    break
+    # Retry words with network error if exist
+    if errors_net:
+        confirmation = input("Do you want to retry the words with network problem? (y/n) ")
+        while True:
+            if confirmation in ('y', "Y"):
+                print(f.YELLOW + 'Retrying failed attempts ...' + f.RESET)
+                corrected_dicts = await correct_errors(errors_net, errors_type='net')
+                errors_non.update(corrected_dicts['errors_non'])
+                errors_404.update(corrected_dicts['errors_404'])
+                errors_net.update(corrected_dicts['errors_net'])
+                break
 
-                else:
-                    confirmation = input("I didn't understand that. "
-                                         + "Do you want to retry the words with network problem? (Type 'y' or 'n') ")
+            elif confirmation in ('n', "N"):
+                # TBC
+                break
 
-        if errors_404:
-            print(f.YELLOW + 'Starting words correction' + f.RESET)
-            corrected_dicts = await correct_errors(errors_404)
-            errors_non.update(corrected_dicts['errors_non'])
-            errors_net.update(corrected_dicts['errors_net'])
+            else:
+                confirmation = input("I didn't understand that. "
+                                     + "Do you want to retry the words with network problem? (Type 'y' or 'n') ")
+
+    # Asking user to correct mistyped words
+    if errors_404:
+        print(f.YELLOW + 'Starting words correction' + f.RESET)
+        corrected_dicts = await correct_errors(errors_404)
+        errors_non.update(corrected_dicts['errors_non'])
+        errors_net.update(corrected_dicts['errors_net'])
 
 
-async def find_word(word) -> dict:
+async def find_word(word: str) -> dict:
     """
     Takes a word as argument and extract its data from 'https://b-amooz.com'
     :param word: A string like 'sehen', 'auto', ...
     :return: A dict object with the stripped word as key and extracted data or None or 404 as value
     """
 
-    def get_examples(example_row: Tag):
+    def extract_examples(example_row: Tag):
         def no_start_num(x: str) -> str:
             return re.sub(r'(^\d\.)|(^\d\. )', "", x).strip()
 
@@ -105,7 +111,7 @@ async def find_word(word) -> dict:
 
         return result
 
-    def get_notes(note_row: Tag):
+    def extract_notes(note_row: Tag):
         result = []
         try:
 
@@ -124,7 +130,7 @@ async def find_word(word) -> dict:
         return result
 
     # Cut the article from the beginning of the string
-    word = re.sub(r'^[dD][iIeEaA][rReEsS] ', '', word).strip()
+    word = re.sub(r'^[dD][iIeEaA][rReEsS] ', '', word).strip().lower()
 
     try:
         # Retrieve and parse data from https://b-amooz.com
@@ -134,7 +140,6 @@ async def find_word(word) -> dict:
 
         # Return 404 error if the string is not on the website as a german word
         if response.status_code == 404:
-            # print(f"{f.MAGENTA + word + f.RESET}: {f.RED + 'Error 404' + f.RESET}")
             return {word: 404}
 
         # Find container for word data
@@ -197,8 +202,8 @@ async def find_word(word) -> dict:
                                 'secondary': row.select_one("div > div > div.row > div > h2 > small").text.strip()},
 
                     # Adding examples of one meaning of the role
-                    "examples": get_examples(row),
-                    "notes": get_notes(row),
+                    "examples": extract_examples(row),
+                    "notes": extract_notes(row),
                 })
         word_list.append(word_data)
 
