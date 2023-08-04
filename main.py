@@ -4,6 +4,7 @@ import datetime
 import re
 import sys
 
+import pyperclip
 from bs4 import BeautifulSoup, Tag, NavigableString
 from colorama import Fore as f
 from httpx import AsyncClient
@@ -257,27 +258,24 @@ async def verb_conjugation(verb: Word) -> str | None:
     with open("template.html", "r") as template:
         html = template.read()
 
-    # Two iteration for two tables in the template
+    # Two iteration for two important tables in the template
     for i in (0, 2):
 
         for j in range(1, 7):
-            try:
-                table = present_table if i == 0 else past_table
+            table = present_table if i == 0 else past_table
 
-                result = table.select_one(f"table > tr:nth-child({j}) > td:nth-child(2) > span")  # temp problem
+            result = table.select_one(f"table > tr:nth-child({j}) > td:nth-child(2) > span")
 
-                # Check for verb irregularity
-                if result.attrs['class'][0] == 'normal':
-                    result = f"<span style=\"color: #000\">{result.text.strip()}</span>"
-                elif result.attrs['class'][0] == 'irregular':
-                    result = f"<span style=\"color: red\">{result.text.strip()}</span>"
-                else:
-                    result = f"<span style=\"color: blue\">{result.text.strip()}</span>"
+            # Check for verb irregularity
+            if result.attrs['class'][0] == 'normal':
+                result = f"<span style=\"color: #000\">{result.text.strip()}</span>"
+            elif result.attrs['class'][0] == 'irregular':
+                result = f"<span style=\"color: red\">{result.text.strip()}</span>"
+            else:
+                result = f"<span style=\"color: blue\">{result.text.strip()}</span>"
 
-                # Place data to template
-                html = html.replace(f"[present_{j}]" if i == 0 else f"[past_{j}]", f"{result}")
-            except Exception as e:
-                print(f"{f.MAGENTA + verb.deutsch + f.RESET} verb: {f.RED + str(e) + f.RESET}")
+            # Place data to template
+            html = html.replace(f"[present_{j}]" if i == 0 else f"[past_{j}]", f"{result}")
 
     # Extracting main info about the verb
     info_div = soup.select_one('body > div.container > div > div.card-header > div.font-size-95')
