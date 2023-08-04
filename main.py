@@ -86,6 +86,17 @@ async def main(path: str, start: int) -> None:
         errors_non.update(corrected_dicts['errors_non'])
         errors_net.update(corrected_dicts['errors_net'])
 
+    # Create list of verbs
+    verbs = {word_Str: word for word_Str, words in errors_non.items() for word in words if word.role == 'فعل'}
+
+    # Create task for verb conjugation scraping
+    tasks = [asyncio.create_task(verb_conjugation(word), name=word_Str) for word_Str, word in verbs.items()]
+
+    # Verb conjugation scraping
+    results: list[str] = [result for result in await asyncio.gather(*tasks)]
+
+    # TBC
+
 
 async def find_word(word: str) -> dict:
     """
@@ -215,6 +226,87 @@ async def find_word(word: str) -> dict:
     # Create Word object and return it
     words = [Word(**word) for word in word_list]
     return {word: words}
+
+
+async def verb_conjugation(verb: Word) -> str | None:
+    """
+    Get verb as string and extract its conjugation from https://b-amooz.com.
+    :param verb: verb text
+    :return: HTML text from 'template.html' file in the same directory or None or '404'
+    """
+
+    try:
+        # Retrieve and parse data from https://b-amooz.com
+        url = verb.conjugation_url
+        response = await AsyncClient().get(url, follow_redirects=True, timeout=60)
+        soup = BeautifulSoup(response, 'html.parser')
+
+        # Return 404 error if the string is not on the website as a german verb
+        if response.status_code == 404:
+            return '404'
+
+        # Find tables
+        present_table = soup.select_one("div > div:nth-child(1) > div > div:nth-child(1) > table")
+        past_table = soup.select_one("div > div:nth-child(1) > div > div:nth-child(3) > table")
+
+    except Exception as e:
+        print(f"{f.MAGENTA + verb.deutsch + f.RESET}: {f.RED + str(e) + f.RESET}")
+        return None
+
+    # Read the template file
+    with open("template.html", "r") as template:
+        html = template.read()
+
+    # Two iteration for two tables in the template
+    for i in (0, 2):
+
+        for j in range(1, 7):
+            try:
+                table = present_table if i == 0 else past_table
+
+                result = table.select_one(f"table > tr:nth-child({j}) > td:nth-child(2) > span")  # temp problem
+
+                # Check for verb irregularity
+                if result.attrs['class'][0] == 'normal':
+                    result = f"<span style=\"color: #000\">{result.text.strip()}</span>"
+                elif result.attrs['class'][0] == 'irregular':
+                    result = f"<span style=\"color: red\">{result.text.strip()}</span>"
+                else:
+                    result = f"<span style=\"color: blue\">{result.text.strip()}</span>"
+
+                # Place data to template
+                html = html.replace(f"[present_{j}]" if i == 0 else f"[past_{j}]", f"{result}")
+            except Exception as e:
+                print(f"{f.MAGENTA + verb.deutsch + f.RESET} verb: {f.RED + str(e) + f.RESET}")
+
+    # Extracting main info about the verb
+    info_div = soup.select_one('body > div.container > div > div.card-header > div.font-size-95')
+    info = {}
+    for i in range(len(info_div)):
+        pair = info_div.select_one(f'div:nth-child({i})')
+        if pair:
+            info[pair.find('b').text.replace(":", "").strip()] = pair.find('span').text.strip()
+
+    try:
+        # Placing main data to html template
+        html = html.replace(">infinitive<", f">{info['مصدر']}<")
+    except Exception as e:
+        print(f"{f.MAGENTA + verb.deutsch + f.RESET} verb: {f.RED + str(e) + f.RESET}")
+
+    try:
+        # Placing main data to html template
+        html = html.replace(">past<", f">{info['گذشته']}<")
+    except Exception as e:
+        print(f"{f.MAGENTA + verb.deutsch + f.RESET} verb: {f.RED + str(e) + f.RESET}")
+
+    try:
+        # Placing main data to html template
+        html = html.replace(">third_state<", f">{info['حالت سوم فعل']}<")
+    except Exception as e:
+        print(f"{f.MAGENTA + verb.deutsch + f.RESET} verb: {f.RED + str(e) + f.RESET}")
+
+    # Return result
+    return html
 
 
 async def correct_errors(words: set[str], errors_type: str = '404', retry: int = 5) -> dict:
