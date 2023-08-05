@@ -208,6 +208,10 @@ async def find_word(word: str, org_word=None) -> dict:
                         in row.select_one("div > div > div > div.text-muted")
                         if item.text.strip()[1:-1])}
 
+                    try:
+                        word_data.plural = word_data.extra.pop('جمع')
+                    except KeyError:
+                        pass
                 except TypeError:
                     pass
 
