@@ -4,6 +4,7 @@ import datetime
 import re
 import sys
 
+import pyperclip
 from bs4 import BeautifulSoup, Tag, NavigableString
 from colorama import Fore as f
 from httpx import AsyncClient
@@ -18,6 +19,9 @@ async def main(path: str, start: int) -> None:
     # Create list of words and removing duplicates
     words = set()
 
+    # Create list of beginning lines
+    starting_rows = []
+
     # Opening the TSV file
     with open(path, 'r', newline="", encoding='utf-8') as file:
         reader = csv.reader(file, delimiter='\t')
@@ -25,6 +29,8 @@ async def main(path: str, start: int) -> None:
         for index, row in enumerate(reader):  # Iterating through the rows of the file
             if index >= start:
                 words.add(row[0].lower())
+            else:
+                starting_rows.append(row)
 
     # Create list of tasks to be executed asynchronously
     tasks = [asyncio.create_task(find_word(word), name=word) for word in words]
@@ -47,6 +53,7 @@ async def main(path: str, start: int) -> None:
     # errors_net: Words with network error
     errors_net: set = set(key for key, val in word_results.items() if val is None)
     # errors_non: Successfully scraped words
+
     errors_non: dict = {key: val for key, val in word_results.items() if type(val) is list}
 
     # Print summary
@@ -86,16 +93,19 @@ async def main(path: str, start: int) -> None:
         errors_non.update(corrected_dicts['errors_non'])
         errors_net.update(corrected_dicts['errors_net'])
 
-    # Create list of verbs
-    verbs = {word_Str: word for word_Str, words in errors_non.items() for word in words if word.role == 'فعل'}
+    # Create output file
+    with open('output.txt', 'w', newline="", encoding='utf-8') as output:
+        writer = csv.writer(output, delimiter='\t')
 
-    # Create task for verb conjugation scraping
-    tasks = [asyncio.create_task(verb_conjugation(word), name=word_Str) for word_Str, word in verbs.items()]
+        # Write starting information on the new file
+        writer.writerows(starting_rows)
 
-    # Verb conjugation scraping
-    verb_results: list[str] = [result for result in await asyncio.gather(*tasks)]
+        # Write newly extracted data to the file
 
-    # TBC
+    for key, val in errors_non.items():
+        for item in val:
+            if item.role == 'فعل':
+                pyperclip.copy(item.conjugation_html)
 
 
 async def find_word(word: str, org_word=None) -> dict:
@@ -188,10 +198,10 @@ async def find_word(word: str, org_word=None) -> dict:
                 # What is the role of the word in a sentence
                 word_data.role = row.select_one("div > div > div > span").text.strip()[1:-1]
 
-                # Adding link for verb conjugation
+                # Adding verb conjugation
                 if word_data.role == 'فعل':
-                    word_data.conjugation_url = \
-                        row.select_one('div > div > div > div.mx-n2.pt-2.mb-amp-3').find('a')['href']
+                    word_data.conjugation_html = await verb_conjugation(
+                        org_word, row.select_one('div > div > div > div.mx-n2.pt-2.mb-amp-3').find('a')['href'])
 
                 # Finding and adding tags
                 try:
@@ -232,16 +242,16 @@ async def find_word(word: str, org_word=None) -> dict:
     return {org_word: words}
 
 
-async def verb_conjugation(verb: Word) -> str | None:
+async def verb_conjugation(verb: str, url: str) -> str | None:
     """
     Get verb as string and extract its conjugation from https://b-amooz.com.
-    :param verb: verb text
+    :param url: The conjugation page url for the verb
+    :param verb: word string just for logging
     :return: HTML text from 'template.html' file in the same directory or None or '404'
     """
 
     try:
         # Retrieve and parse data from https://b-amooz.com
-        url = verb.conjugation_url
         response = await AsyncClient().get(url, follow_redirects=True, timeout=60)
         soup = BeautifulSoup(response, 'html.parser')
 
@@ -254,7 +264,7 @@ async def verb_conjugation(verb: Word) -> str | None:
         past_table = soup.select_one("div > div:nth-child(1) > div > div:nth-child(3) > table")
 
     except Exception as e:
-        print(f"{f.MAGENTA + verb.deutsch + f.RESET}: {f.RED + str(e) + f.RESET}")
+        print(f"{f.MAGENTA + verb + f.RESET}: {f.RED + str(e) + f.RESET}")
         return None
 
     # Read the template file
@@ -292,19 +302,19 @@ async def verb_conjugation(verb: Word) -> str | None:
         # Placing main data to html template
         html = html.replace(">infinitive<", f">{info['مصدر']}<")
     except Exception as e:
-        print(f"{f.MAGENTA + verb.deutsch + f.RESET} verb: {f.RED + str(e) + f.RESET}")
+        print(f"{f.MAGENTA + verb + f.RESET} verb: {f.RED + str(e) + f.RESET}")
 
     try:
         # Placing main data to html template
         html = html.replace(">past<", f">{info['گذشته']}<")
     except Exception as e:
-        print(f"{f.MAGENTA + verb.deutsch + f.RESET} verb: {f.RED + str(e) + f.RESET}")
+        print(f"{f.MAGENTA + verb + f.RESET} verb: {f.RED + str(e) + f.RESET}")
 
     try:
         # Placing main data to html template
         html = html.replace(">third_state<", f">{info['حالت سوم فعل']}<")
     except Exception as e:
-        print(f"{f.MAGENTA + verb.deutsch + f.RESET} verb: {f.RED + str(e) + f.RESET}")
+        print(f"{f.MAGENTA + verb + f.RESET} verb: {f.RED + str(e) + f.RESET}")
 
     # Return result
     return html
@@ -328,12 +338,16 @@ async def correct_errors(words: set[str], errors_type: str = '404', retry: int =
                 f'{i + 1}. Insert the correct form of {f.MAGENTA + word + f.RESET}. Type "c" to skip: ')
             if corrected_word != 'c' and corrected_word != 'C':
                 corrected_dict.update({org_word: corrected_word})
+
+        tasks = [asyncio.create_task(find_word(corrected_word, org_word=org_word), name=corrected_word)
+                 for org_word, corrected_word in corrected_dict.items()]
+
     else:
         print(f'{f.YELLOW}Retry number {6 - retry} on failed attempts ...{f.RESET}')
         corrected_dict = {word: None for word in words}
 
-    tasks = [asyncio.create_task(find_word(corrected_word, org_word=org_word), name=corrected_word)
-             for org_word, corrected_word in corrected_dict.items()]
+        tasks = [asyncio.create_task(find_word(org_word), name=org_word)
+                 for org_word in corrected_dict]
 
     # Store starting time
     start_time = datetime.datetime.now()

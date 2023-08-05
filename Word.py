@@ -22,7 +22,7 @@ class Word:
                  role: str = None,
                  deutsch: str = None,
                  plural: str = None,
-                 conjugation_url: str = None,
+                 conjugation_html: str = None,
                  tags: list[str] = None,
                  meaning_data: list[MeaningData] = None,
                  extra: dict = None
@@ -30,7 +30,7 @@ class Word:
         self.role = role
         self.deutsch = deutsch
         self.plural = plural
-        self.conjugation_url = conjugation_url
+        self.conjugation_html = conjugation_html
         self.tags = tags if tags else []
         self.meaning_data = meaning_data if meaning_data else []
         self.extra = extra
