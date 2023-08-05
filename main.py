@@ -4,7 +4,6 @@ import datetime
 import re
 import sys
 
-import pyperclip
 from bs4 import BeautifulSoup, Tag, NavigableString
 from colorama import Fore as f
 from httpx import AsyncClient
@@ -177,57 +176,55 @@ async def find_word(word: str, org_word=None) -> dict:
     word_list = []
     for rows in rows_list:  # Each iteration represent data about one role of the word eg: name, verb, preposition, etc.
 
-        word_data = {'role': None, 'deutsch': None, 'tags': None, 'meaning_data': []}
+        word_data: Word = Word()
         for index, row in enumerate(rows):
             # Each iteration except the first one represent one whole box for all the word meanings
 
             if index == 0:  # The first box contains the details about the word itself
 
                 # The german version of the word
-                word_data['deutsch'] = row.select_one("div > div > div > h1").text.strip()
+                word_data.deutsch = row.select_one("div > div > div > h1").text.strip()
 
                 # What is the role of the word in a sentence
-                word_data['role'] = row.select_one("div > div > div > span").text.strip()[1:-1]
+                word_data.role = row.select_one("div > div > div > span").text.strip()[1:-1]
 
                 # Adding link for verb conjugation
-                if word_data['role'] == 'فعل':
-                    word_data['conjugation_url'] = \
+                if word_data.role == 'فعل':
+                    word_data.conjugation_url = \
                         row.select_one('div > div > div > div.mx-n2.pt-2.mb-amp-3').find('a')['href']
 
                 # Finding and adding tags
                 try:
-                    word_data['tags'] = [item.text.strip() for item in
-                                         row.find_all(class_="badge-pill badge-light ml-1")
-                                         if item.text.strip()]
+                    word_data.tags = [item.text.strip() for item in
+                                      row.find_all(class_="badge-pill badge-light ml-1")
+                                      if item.text.strip()]
                 except Exception as e:
                     print(f"{f.MAGENTA + word + f.RESET}: word_data['tags']: {f.YELLOW + str(e) + f.RESET}")
 
                 # Finding and adding extra data
                 try:
-                    word_data['extra'] = {key: val for key, val in tuple(
+                    word_data.extra = {key.strip(): val.strip() for key, val in tuple(
                         item.text.strip()[1:-1].split(":") for item
                         in row.select_one("div > div > div > div.text-muted")
                         if item.text.strip()[1:-1])}
+
                 except TypeError:
                     pass
 
             else:  # The rest of the boxes contains data about different meanings of the word
 
                 # Finding the data of each meaning of the same role of the word
-                word_data['meaning_data'].append({
+                word_data.meaning_data.append(Word.MeaningData(
+                    meaning=Word.MeaningData.Meaning(
+                        primary=row.select_one("div > div > div.row > div > h2 > strong").text.strip(),
+                        secondary=row.select_one("div > div > div.row > div > h2 > small").text.strip()),
+                    examples=extract_examples(row),
+                    notes=extract_notes(row)))
 
-                    # Adding the persian substitute and its secondary value to list of meanings of the role
-                    "meaning": {'primary': row.select_one("div > div > div.row > div > h2 > strong").text.strip(),
-                                'secondary': row.select_one("div > div > div.row > div > h2 > small").text.strip()},
-
-                    # Adding examples of one meaning of the role
-                    "examples": extract_examples(row),
-                    "notes": extract_notes(row),
-                })
         word_list.append(word_data)
 
     # Create Word object and return it
-    words = [Word(**word) for word in word_list]
+    words = [word for word in word_list]
     return {org_word: words}
 
 
