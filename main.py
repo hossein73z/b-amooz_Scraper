@@ -36,7 +36,7 @@ async def main(path: str, start: int) -> None:
     start_time = datetime.datetime.now()
 
     # Wait for tasks to be completed
-    results: dict = {key: val for result in await asyncio.gather(*tasks) for key, val in result.items()}
+    word_results: dict = {key: val for result in await asyncio.gather(*tasks) for key, val in result.items()}
 
     # Calculating process duration
     duration = datetime.datetime.now() - start_time
@@ -44,11 +44,11 @@ async def main(path: str, start: int) -> None:
     # Separate the results
 
     # errors_404: Mistyped words
-    errors_404: set = set(key for key, val in results.items() if type(val) == int)
+    errors_404: set = set(key for key, val in word_results.items() if type(val) == int)
     # errors_net: Words with network error
-    errors_net: set = set(key for key, val in results.items() if val is None)
+    errors_net: set = set(key for key, val in word_results.items() if val is None)
     # errors_non: Successfully scraped words
-    errors_non: dict = {key: val for key, val in results.items() if type(val) is list}
+    errors_non: dict = {key: val for key, val in word_results.items() if type(val) is list}
 
     # Print summary
     print(f.GREEN + str(len(errors_non)) + f.RESET + ' data extracted in ' + f.GREEN + str(
@@ -94,16 +94,17 @@ async def main(path: str, start: int) -> None:
     tasks = [asyncio.create_task(verb_conjugation(word), name=word_Str) for word_Str, word in verbs.items()]
 
     # Verb conjugation scraping
-    results: list[str] = [result for result in await asyncio.gather(*tasks)]
+    verb_results: list[str] = [result for result in await asyncio.gather(*tasks)]
 
     # TBC
 
 
-async def find_word(word: str) -> dict:
+async def find_word(word: str, org_word=None) -> dict:
     """
-    Takes a word as argument and extract its data from 'https://b-amooz.com'
-    :param word: A string like 'sehen', 'auto', ...
-    :return: A dict object with the stripped word as key and extracted data or None or 404 as value
+    Takes a word as argument and extract its data from 'https://b-amooz.com'.
+    :param org_word: Original word string to be returned as dictionary key. None for using word string as key.
+    :param word: A word as string like 'sehen', 'auto', ...
+    :return: A dict object with the given word string as key and extracted data or None or 404 as value.
     """
 
     def extract_examples(example_row: Tag):
@@ -142,6 +143,7 @@ async def find_word(word: str) -> dict:
         return result
 
     # Cut the article from the beginning of the string
+    org_word = org_word if org_word else word
     word = re.sub(r'^[dD][iIeEaA][rReEsS] ', '', word).strip().lower()
 
     try:
@@ -152,14 +154,14 @@ async def find_word(word: str) -> dict:
 
         # Return 404 error if the string is not on the website as a german word
         if response.status_code == 404:
-            return {word: 404}
+            return {org_word: 404}
 
         # Find container for word data
         container: list[Tag] = [child for child in soup.find(class_="container mt-2") if type(child) != NavigableString]
 
     except Exception as e:
         print(f"{f.MAGENTA + word + f.RESET}: {f.RED + str(e) + f.RESET}")
-        return {word: None}
+        return {org_word: None}
 
     # Divide list of rows by their role
     rows_list = []
@@ -226,7 +228,7 @@ async def find_word(word: str) -> dict:
 
     # Create Word object and return it
     words = [Word(**word) for word in word_list]
-    return {word: words}
+    return {org_word: words}
 
 
 async def verb_conjugation(verb: Word) -> str | None:
@@ -316,18 +318,21 @@ async def correct_errors(words: set[str], errors_type: str = '404', retry: int =
     :return: extracted words data as dictionary
     """
 
-    corrected_words = []
+    corrected_dict = {}
     if errors_type == '404':
-        for i, word in enumerate(words):
+        for i, org_word in enumerate(words):
+            word = re.sub(r'^[dD][iIeEaA][rReEsS] ', '', org_word).strip().lower()
+
             corrected_word = input(
                 f'{i + 1}. Insert the correct form of {f.MAGENTA + word + f.RESET}. Type "c" to skip: ')
             if corrected_word != 'c' and corrected_word != 'C':
-                corrected_words.append(corrected_word)
+                corrected_dict.update({org_word: corrected_word})
     else:
         print(f'{f.YELLOW}Retry number {6 - retry} on failed attempts ...{f.RESET}')
-        corrected_words = words
+        corrected_dict = {word: None for word in words}
 
-    tasks = [asyncio.create_task(find_word(corrected_word), name=corrected_word) for corrected_word in corrected_words]
+    tasks = [asyncio.create_task(find_word(corrected_word, org_word=org_word), name=corrected_word)
+             for org_word, corrected_word in corrected_dict.items()]
 
     # Store starting time
     start_time = datetime.datetime.now()
