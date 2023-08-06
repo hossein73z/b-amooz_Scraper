@@ -4,7 +4,6 @@ import datetime
 import re
 import sys
 
-import pyperclip
 from bs4 import BeautifulSoup, Tag, NavigableString
 from colorama import Fore as f
 from httpx import AsyncClient
@@ -105,7 +104,7 @@ async def main(path: str, start: int) -> None:
     for key, val in errors_non.items():
         for item in val:
             if item.role == 'فعل':
-                pyperclip.copy(item.conjugation_html)
+                pass
 
 
 async def find_word(word: str, org_word=None) -> dict:
@@ -247,7 +246,7 @@ async def verb_conjugation(verb: str, url: str) -> str | None:
     Get verb as string and extract its conjugation from https://b-amooz.com.
     :param url: The conjugation page url for the verb
     :param verb: word string just for logging
-    :return: HTML text from 'template.html' file in the same directory or None or '404'
+    :return: HTML text from 'conjugation_template.html' file in the same directory or None or '404'
     """
 
     try:
@@ -268,7 +267,7 @@ async def verb_conjugation(verb: str, url: str) -> str | None:
         return None
 
     # Read the template file
-    with open("template.html", "r") as template:
+    with open("conjugation_template.html", "r") as template:
         html = template.read()
 
     # Two iteration for two important tables in the template
