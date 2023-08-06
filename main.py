@@ -15,21 +15,21 @@ async def main(path: str, start: int) -> None:
     print(f'The file path is: {f.MAGENTA + path + f.RESET}')
     print(f'First word at row {f.MAGENTA + str(start + 1) + f.RESET}')
 
-    # Create list of words and removing duplicates
-    words = set()
+    # Create a list of rows
+    rows = []
 
-    # Create list of beginning lines
-    starting_rows = []
+    # Create a set of words
+    words = set()
 
     # Opening the TSV file
     with open(path, 'r', newline="", encoding='utf-8') as file:
         reader = csv.reader(file, delimiter='\t')
 
         for index, row in enumerate(reader):  # Iterating through the rows of the file
+            rows.append(row)
+
             if index >= start:
                 words.add(row[0].lower())
-            else:
-                starting_rows.append(row)
 
     # Create list of tasks to be executed asynchronously
     tasks = [asyncio.create_task(find_word(word), name=word) for word in words]
@@ -97,14 +97,65 @@ async def main(path: str, start: int) -> None:
         writer = csv.writer(output, delimiter='\t')
 
         # Write starting information on the new file
-        writer.writerows(starting_rows)
+        writer.writerows(rows[0:start - 1])
+
+        # Write column titles
+        writer.writerow([
+            'Text 1',
+            'Text 2',
+            'Text 3',
+            'Text 4',
+            'Text 5',
+            'Text 6',
+            'Category 1',
+            'Category 2',
+            'Statistics 1',
+            'Statistics 2',
+            'Statistics 3',
+        ])
 
         # Write newly extracted data to the file
+        for word_row in rows[start:]:
+            try:
+                # Extract word data from dictionary
+                data_list = errors_non.pop(word_row[0].lower())
 
-    for key, val in errors_non.items():
-        for item in val:
-            if item.role == 'فعل':
-                pass
+            except KeyError as key_error:
+                # Go for the next word if the key doesn't exist
+                print("main: " + word_row[0] + ": " + f.RED + str(key_error) + f.RESET)
+                continue
+
+            # Iterate through different roles of the word
+            for data in data_list:
+                data: Word
+
+                # Initialising string for 'Text 2'
+                text_2 = meaning_html([meaning_data.meaning for meaning_data in data.meaning_data])
+
+                # Initialising string for 'Text 3'
+                text_3 = ''
+                if data.role == 'اسم':
+                    text_3 = re.match(r'^[dD][iIeEaA][rReEsS] ', data.deutsch).group(0).strip()
+                elif data.role == 'فعل':
+                    text_3 = data.conjugation_html
+
+                # Initialising string for 'Text 4'
+                text_4 = re.sub(r'^[dD][iIeEaA][rReEsS] ', '', data.deutsch).strip() if data.role == 'اسم' else ''
+
+                writer.writerow(
+                    [
+                        data.deutsch,  # ------------------------------------------------ Text 1
+                        text_2,  # ------------------------------------------------------ Text 2
+                        text_3,  # ------------------------------------------------------ Text 3
+                        text_4,  # ------------------------------------------------------ Text 4
+                        f'[{data.role}]',  # -------------------------------------------- Text 5
+                        data.plural if data.plural else '',  # -------------------------- Text 6
+
+                        word_row[4],  # ------------------------------------------------- Category 1 (Unchanged)
+                        data.role,  # --------------------------------------------------- Category 2
+
+                    ] + word_row[6:]  # Adding the rest of the original columns to the end
+                )
 
 
 async def find_word(word: str, org_word=None) -> dict:
@@ -383,6 +434,13 @@ async def correct_errors(words: set[str], errors_type: str = '404', retry: int =
         errors_404 = corrected_dicts['errors_404']
 
     return {'errors_non': errors_non, 'errors_net': errors_net, 'errors_404': errors_404}
+
+
+def meaning_html(meanings: list[Word.MeaningData.Meaning]):
+    html = ''
+    for meaning in meanings:
+        html += f'<div>{meaning.primary} <small>({meaning.secondary})</small></div>'
+    return html
 
 
 if __name__ == '__main__':
