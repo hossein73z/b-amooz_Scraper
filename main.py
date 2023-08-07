@@ -27,12 +27,20 @@ async def main(path: str, start: int) -> None:
     with open(path, 'r', newline="", encoding='utf-8') as file:
         reader = csv.reader(file, delimiter='\t')
 
+        temp_word_set = set()  # Create a set to remove duplicate stripped words
         for index, row in enumerate(reader):  # Iterating through the rows of the file
             rows.append(row)
+
             if index == start - 1:
                 columns = row
+
             if index >= start:
-                words.add(row[0].lower())
+                # Store stripped word string in a temporary varable
+                temp_word = re.sub(r'^[dD][iIeEaA][rReEsS] ', '', row[0]).strip().lower()
+
+                if temp_word not in temp_word_set:
+                    temp_word_set.add(temp_word)
+                    words.add(row[0].lower())
 
     # Create list of tasks to be executed asynchronously
     tasks = [asyncio.create_task(find_word(word), name=word) for word in words]
