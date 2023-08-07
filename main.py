@@ -136,7 +136,10 @@ async def main(path: str, start: int) -> None:
                 data: Word
 
                 # Initialising string for 'Text 2'
-                text_2 = meaning_html([meaning_data.meaning for meaning_data in data.meaning_data])
+                text_2 = ''
+                for meaning in [meaning_data.meaning for meaning_data in data.meaning_data]:
+                    text_2 += f'<div>{meaning.primary}' \
+                              + f'{"<small> (" + meaning.secondary + ")</small>" if meaning.secondary else ""}</div>'
 
                 # Initialising string for 'Text 3'
                 text_3 = ''
@@ -443,13 +446,6 @@ async def correct_errors(words: set[str], errors_type: str = '404', retry: int =
         errors_404 = corrected_dicts['errors_404']
 
     return {'errors_non': errors_non, 'errors_net': errors_net, 'errors_404': errors_404}
-
-
-def meaning_html(meanings: list[Word.MeaningData.Meaning]):
-    html = ''
-    for meaning in meanings:
-        html += f'<div>{meaning.primary} <small>({meaning.secondary})</small></div>'
-    return html
 
 
 if __name__ == '__main__':
