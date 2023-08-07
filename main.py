@@ -116,8 +116,6 @@ async def main(path: str, start: int) -> None:
             'Statistics 2',
             'Statistics 3',
             'Statistics 4',
-            'Statistics 5',
-            'Statistics 6',
         ])
 
         # Write newly extracted data to the file
@@ -136,10 +134,11 @@ async def main(path: str, start: int) -> None:
                 data: Word
 
                 # Initialising string for 'Text 2'
-                text_2 = ''
+                text_2 = '<!DOCTYPE html><html lang="ir"><head><meta charset="UTF-8"><title>Title</title></head><body><ul dir="rtl">'
                 for meaning in [meaning_data.meaning for meaning_data in data.meaning_data]:
-                    text_2 += f'<div>{meaning.primary}' \
-                              + f'{"<small> (" + meaning.secondary + ")</small>" if meaning.secondary else ""}</div>'
+                    text_2 += f'<li>{meaning.primary}' \
+                              + f'{"<small> (" + meaning.secondary + ")</small>" if meaning.secondary else ""}</li>'
+                text_2 += '</ul></body></html>'
 
                 # Initialising string for 'Text 3'
                 text_3 = ''
