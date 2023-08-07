@@ -17,6 +17,8 @@ async def main(path: str, start: int) -> None:
 
     # Create a list of rows
     rows = []
+    # Create a list of rows
+    columns = []
 
     # Create a set of words
     words = set()
@@ -27,7 +29,8 @@ async def main(path: str, start: int) -> None:
 
         for index, row in enumerate(reader):  # Iterating through the rows of the file
             rows.append(row)
-
+            if index == start - 1:
+                columns = row
             if index >= start:
                 words.add(row[0].lower())
 
@@ -112,6 +115,9 @@ async def main(path: str, start: int) -> None:
             'Statistics 1',
             'Statistics 2',
             'Statistics 3',
+            'Statistics 4',
+            'Statistics 5',
+            'Statistics 6',
         ])
 
         # Write newly extracted data to the file
@@ -122,7 +128,7 @@ async def main(path: str, start: int) -> None:
 
             except KeyError as key_error:
                 # Go for the next word if the key doesn't exist
-                print("main: " + word_row[0] + ": " + f.RED + str(key_error) + f.RESET)
+                print("main: Key error: " + f.RED + str(key_error) + f.RESET)
                 continue
 
             # Iterate through different roles of the word
@@ -151,10 +157,13 @@ async def main(path: str, start: int) -> None:
                         f'[{data.role}]',  # -------------------------------------------- Text 5
                         data.plural if data.plural else '',  # -------------------------- Text 6
 
-                        word_row[4],  # ------------------------------------------------- Category 1 (Unchanged)
+                        word_row[columns.index('Category 1')],  # ----------------------- Category 1 (Unchanged)
                         data.role,  # --------------------------------------------------- Category 2
 
-                    ] + word_row[6:]  # Adding the rest of the original columns to the end
+                    ]
+
+                    # Adding the 'Statistics' columns to the end
+                    + [word_row[index] for index, val in enumerate(columns) if 'Statistics' in val]
                 )
 
 
