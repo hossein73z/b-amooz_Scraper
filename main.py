@@ -35,8 +35,8 @@ async def main(path: str, start: int) -> None:
                 columns = row
 
             if index >= start:
-                # Store stripped word string in a temporary varable
-                temp_word = re.sub(r'^[dD][iIeEaA][rReEsS] ', '', row[0]).strip().lower()
+                # Store stripped word string in a temporary variable
+                temp_word = re.sub(r'^([dD][iIeEaA][rReEsS] )|^( *sich )', '', row[0]).strip().lower()
 
                 if temp_word not in temp_word_set:
                     temp_word_set.add(temp_word)
@@ -222,7 +222,7 @@ async def find_word(word: str, org_word=None) -> dict:
 
     # Cut the article from the beginning of the string
     org_word = org_word if org_word else word
-    word = re.sub(r'^[dD][iIeEaA][rReEsS] ', '', word).strip().lower()
+    word = re.sub(r'^([dD][iIeEaA][rReEsS] )|( *sich )', '', word).strip().lower()
 
     try:
         # Retrieve and parse data from https://b-amooz.com
