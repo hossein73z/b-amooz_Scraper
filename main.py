@@ -114,10 +114,11 @@ async def main(path: str, start: int) -> None:
         writer.writerow([
             'Text 1',  # ---------------------------------------------------------------- German word
             'Text 2',  # ---------------------------------------------------------------- Persian meaning
-            'Text 3',  # ---------------------------------------------------------------- Artikel or conjugation
+            'Text 3',  # ---------------------------------------------------------------- Artikel
             'Text 4',  # ---------------------------------------------------------------- No artikel
             'Text 5',  # ---------------------------------------------------------------- Word role in brackets
             'Text 6',  # ---------------------------------------------------------------- Plural form if exist
+            'Text 7',  # ---------------------------------------------------------------- Conjugation
 
             'Category 1',  # ------------------------------------------------------------ Source of the word
             'Category 2',  # ------------------------------------------------------------ Word role
@@ -151,16 +152,21 @@ async def main(path: str, start: int) -> None:
                 text_2 += '</ul></body></html>'
 
                 # Initialising string for 'Text 3'
-                text_3 = ''
                 if data.role == 'اسم':
                     text_3 = re.match(r'^[dD][iIeEaA][rReEsS] ', data.deutsch).group(0).strip()
-                elif data.role == 'فعل':
-                    text_3 = data.conjugation_html
+                else:
+                    text_3 = ''
 
                 # Initialising string for 'Text 4'
                 text_4 = re.sub(r'^[dD][iIeEaA][rReEsS] ', '', data.deutsch).strip() if data.role == 'اسم' else ''
 
-                writer.writerow(
+                # Initialising string for 'Text 7'
+                if data.role == 'فعل':
+                    text_7 = data.conjugation_html
+                else:
+                    text_7 = ''
+
+            writer.writerow(
                     [
                         data.deutsch,  # ------------------------------------------------ Text 1
                         text_2,  # ------------------------------------------------------ Text 2
@@ -168,6 +174,7 @@ async def main(path: str, start: int) -> None:
                         text_4,  # ------------------------------------------------------ Text 4
                         f'[{data.role}]',  # -------------------------------------------- Text 5
                         data.plural if data.plural else '',  # -------------------------- Text 6
+                        text_7,  # ------------------------------------------------------ Text 7
 
                         word_row[columns.index('Category 1')],  # ----------------------- Category 1 (Unchanged)
                         data.role,  # --------------------------------------------------- Category 2
