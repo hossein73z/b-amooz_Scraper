@@ -112,18 +112,20 @@ async def main(path: str, start: int) -> None:
 
         # Write column titles
         writer.writerow([
-            'Text 1',
-            'Text 2',
-            'Text 3',
-            'Text 4',
-            'Text 5',
-            'Text 6',
-            'Category 1',
-            'Category 2',
-            'Statistics 1',
-            'Statistics 2',
-            'Statistics 3',
-            'Statistics 4',
+            'Text 1',  # ---------------------------------------------------------------- German word
+            'Text 2',  # ---------------------------------------------------------------- Persian meaning
+            'Text 3',  # ---------------------------------------------------------------- Artikel or conjugation
+            'Text 4',  # ---------------------------------------------------------------- No artikel
+            'Text 5',  # ---------------------------------------------------------------- Word role in brackets
+            'Text 6',  # ---------------------------------------------------------------- Plural form if exist
+
+            'Category 1',  # ------------------------------------------------------------ Source of the word
+            'Category 2',  # ------------------------------------------------------------ Word role
+
+            'Statistics 1',  # ---------------------------------------------------------- German to persian data
+            'Statistics 2',  # ---------------------------------------------------------- Persian to german data
+            'Statistics 3',  # ---------------------------------------------------------- Der-Die-Das data
+            'Statistics 4',  # ---------------------------------------------------------- Conjugation data
         ])
 
         # Write newly extracted data to the file
