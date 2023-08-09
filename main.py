@@ -145,11 +145,14 @@ async def main(path: str, start: int) -> None:
                 data: Word
 
                 # Initialising string for 'Text 2'
-                text_2 = '<!DOCTYPE html><html lang="ir"><head><meta charset="UTF-8"><title>Title</title></head><body><ul dir="rtl">'
+                text_2 = '<head><meta charset="UTF-8"><title></title></head><body>'
+                text_2 += '<table style="width: 100%; border: 2px solid black;border-radius: 10px"><tbody>'
                 for meaning in [meaning_data.meaning for meaning_data in data.meaning_data]:
-                    text_2 += f'<li>{meaning.primary}' \
-                              + f'{"<small> (" + meaning.secondary + ")</small>" if meaning.secondary else ""}</li>'
-                text_2 += '</ul></body></html>'
+                    text_2 += '<tr><td style="border-bottom: 1px solid black">'
+                    text_2 += f'{meaning.primary}' \
+                              f'{"<small> (" + meaning.secondary + ")</small>" if meaning.secondary else ""}'
+                    text_2 += '</td></tr>'
+                text_2 += '</tbody></table></body>'
 
                 # Initialising string for 'Text 3'
                 if data.role == 'اسم':
