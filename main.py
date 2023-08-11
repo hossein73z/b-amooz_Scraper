@@ -131,6 +131,8 @@ async def main(path: str, start: int) -> None:
 
         # Write newly extracted data to the file
         for word_row in rows[start:]:
+            word_row += [None for _ in range(len(columns) - len(word_row))]
+
             try:
                 # Extract word data from dictionary
                 data_list = errors_non.pop(word_row[0].lower())
