@@ -36,7 +36,8 @@ async def main(path: str, start: int) -> None:
 
             if index >= start:
                 # Store stripped word string in a temporary variable
-                temp_word = re.sub(r'^([dD][iIeEaA][rReEsS] )|^( *sich )', '', row[0]).strip().lower()
+                temp_word = re.sub(r'^(([dD][eE][rR])|([dD][iI][eE])|([dD][aA][sS]) )|^( *sich )', '',
+                                   row[0]).strip().lower()
 
                 if temp_word not in temp_word_set:
                     temp_word_set.add(temp_word)
@@ -158,12 +159,13 @@ async def main(path: str, start: int) -> None:
 
                 # Initialising string for 'Text 3'
                 if data.role == 'اسم':
-                    text_3 = re.match(r'^[dD][iIeEaA][rReEsS] ', data.deutsch).group(0).strip()
+                    text_3 = re.match(r'^([dD][eE][rR])|([dD][iI][eE])|([dD][aA][sS]) ', data.deutsch).group(0).strip()
                 else:
                     text_3 = ''
 
                 # Initialising string for 'Text 4'
-                text_4 = re.sub(r'^[dD][iIeEaA][rReEsS] ', '', data.deutsch).strip() if data.role == 'اسم' else ''
+                text_4 = re.sub(r'^([dD][eE][rR])|([dD][iI][eE])|([dD][aA][sS]) ', '',
+                                data.deutsch).strip() if data.role == 'اسم' else ''
 
                 # Initialising string for 'Text 7'
                 if data.role == 'فعل':
@@ -236,7 +238,7 @@ async def find_word(word: str, org_word=None) -> dict:
 
     # Cut the article from the beginning of the string
     org_word = org_word if org_word else word
-    word = re.sub(r'^([dD][iIeEaA][rReEsS] )|( *sich )', '', word).strip().lower()
+    word = re.sub(r'^(([dD][eE][rR])|([dD][iI][eE])|([dD][aA][sS]) )|( *sich )', '', word).strip().lower()
 
     try:
         # Retrieve and parse data from https://b-amooz.com
@@ -415,7 +417,7 @@ async def correct_errors(words: set[str], errors_type: str = '404', retry: int =
     corrected_dict = {}
     if errors_type == '404':
         for i, org_word in enumerate(words):
-            word = re.sub(r'^[dD][iIeEaA][rReEsS] ', '', org_word).strip().lower()
+            word = re.sub(r'^([dD][eE][rR])|([dD][iI][eE])|([dD][aA][sS]) ', '', org_word).strip().lower()
 
             corrected_word = input(
                 f'{i + 1}. Insert the correct form of {f.MAGENTA + word + f.RESET}. Type "c" to skip: ')
