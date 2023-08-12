@@ -43,66 +43,7 @@ async def main(path: str, start: int) -> None:
                     temp_word_set.add(temp_word)
                     words.add(row[0].lower())
 
-    # Create list of tasks to be executed asynchronously
-    tasks = [asyncio.create_task(find_word(word), name=word) for word in words]
-
-    print(f'Start scraping for {f.MAGENTA + str(len(tasks)) + f.RESET} words')
-
-    # Record time
-    start_time = datetime.datetime.now()
-
-    # Wait for tasks to be completed
-    word_results: dict = {key: val for result in await asyncio.gather(*tasks) for key, val in result.items()}
-
-    # Calculating process duration
-    duration = datetime.datetime.now() - start_time
-
-    # Separate the results
-
-    # errors_404: Mistyped words
-    errors_404: set = set(key for key, val in word_results.items() if type(val) == int)
-    # errors_net: Words with network error
-    errors_net: set = set(key for key, val in word_results.items() if val is None)
-    # errors_non: Successfully scraped words
-
-    errors_non: dict = {key: val for key, val in word_results.items() if type(val) is list}
-
-    # Print summary
-    print(f.GREEN + str(len(errors_non)) + f.RESET + ' data extracted in ' + f.GREEN + str(
-        duration.seconds) + f.RESET + ' seconds.')
-    print(f"Couldn't find {f.RED + str(len(errors_404)) + f.RESET} words:")
-    for error in errors_404:
-        print(error)
-    print(f'Network error on {f.RED + str(len(errors_net)) + f.RESET} words:')
-    for error in errors_net:
-        print(error)
-
-    # Retry words with network error if exist
-    if errors_net:
-        confirmation = input("Do you want to retry the words with network problem? (y/n) ")
-        while True:
-            if confirmation in ('y', "Y"):
-                print(f.YELLOW + 'Retrying failed attempts ...' + f.RESET)
-                corrected_dicts = await correct_errors(errors_net, errors_type='net')
-                errors_non.update(corrected_dicts['errors_non'])
-                errors_404.update(corrected_dicts['errors_404'])
-                errors_net.update(corrected_dicts['errors_net'])
-                break
-
-            elif confirmation in ('n', "N"):
-                # TBC
-                break
-
-            else:
-                confirmation = input("I didn't understand that. "
-                                     + "Do you want to retry the words with network problem? (Type 'y' or 'n') ")
-
-    # Asking user to correct mistyped words
-    if errors_404:
-        print(f.YELLOW + 'Starting words correction' + f.RESET)
-        corrected_dicts = await correct_errors(errors_404)
-        errors_non.update(corrected_dicts['errors_non'])
-        errors_net.update(corrected_dicts['errors_net'])
+    errors_non: dict = await create_final_result(words)
 
     # Create output file
     with open('output.txt', 'w', newline="", encoding='utf-8') as output:
@@ -469,6 +410,70 @@ async def correct_errors(words: set[str], errors_type: str = '404', retry: int =
         errors_404 = corrected_dicts['errors_404']
 
     return {'errors_non': errors_non, 'errors_net': errors_net, 'errors_404': errors_404}
+
+
+async def create_final_result(words: set[str]):
+    # Create list of tasks to be executed asynchronously
+    tasks = [asyncio.create_task(find_word(word), name=word) for word in words]
+
+    print(f'Start scraping for {f.MAGENTA + str(len(tasks)) + f.RESET} words')
+
+    # Record time
+    start_time = datetime.datetime.now()
+
+    # Wait for tasks to be completed
+    word_results: dict = {key: val for result in await asyncio.gather(*tasks) for key, val in result.items()}
+
+    # Calculating process duration
+    duration = datetime.datetime.now() - start_time
+
+    # Separate the results
+
+    # errors_404: Mistyped words
+    errors_404: set = set(key for key, val in word_results.items() if type(val) == int)
+    # errors_net: Words with network error
+    errors_net: set = set(key for key, val in word_results.items() if val is None)
+    # errors_non: Successfully scraped words
+    errors_non: dict = {key: val for key, val in word_results.items() if type(val) is list}
+
+    # Print summary
+    print(f.GREEN + str(len(errors_non)) + f.RESET + ' data extracted in ' + f.GREEN + str(
+        duration.seconds) + f.RESET + ' seconds.')
+    print(f"Couldn't find {f.RED + str(len(errors_404)) + f.RESET} words:")
+    for error in errors_404:
+        print(error)
+    print(f'Network error on {f.RED + str(len(errors_net)) + f.RESET} words:')
+    for error in errors_net:
+        print(error)
+
+    # Retry words with network error if exist
+    if errors_net:
+        confirmation = input("Do you want to retry the words with network problem? (y/n) ")
+        while True:
+            if confirmation in ('y', "Y"):
+                print(f.YELLOW + 'Retrying failed attempts ...' + f.RESET)
+                corrected_dicts = await correct_errors(errors_net, errors_type='net')
+                errors_non.update(corrected_dicts['errors_non'])
+                errors_404.update(corrected_dicts['errors_404'])
+                errors_net.update(corrected_dicts['errors_net'])
+                break
+
+            elif confirmation in ('n', "N"):
+                # TBC
+                break
+
+            else:
+                confirmation = input("I didn't understand that. "
+                                     + "Do you want to retry the words with network problem? (Type 'y' or 'n') ")
+
+    # Asking user to correct mistyped words
+    if errors_404:
+        print(f.YELLOW + 'Starting words correction' + f.RESET)
+        corrected_dicts = await correct_errors(errors_404)
+        errors_non.update(corrected_dicts['errors_non'])
+        errors_net.update(corrected_dicts['errors_net'])
+
+    return errors_non
 
 
 if __name__ == '__main__':
