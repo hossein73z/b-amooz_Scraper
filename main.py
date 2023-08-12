@@ -11,7 +11,7 @@ from httpx import AsyncClient
 from Word import Word
 
 
-async def main(path: str, start: int) -> None:
+async def auto(path: str, start: int) -> None:
     print(f'The file path is: {f.MAGENTA + path + f.RESET}')
     print(f'First word at row {f.MAGENTA + str(start + 1) + f.RESET}')
 
@@ -46,7 +46,7 @@ async def main(path: str, start: int) -> None:
     errors_non: dict = await create_final_result(words)
 
     # Create output file
-    with open('output.txt', 'w', newline="", encoding='utf-8') as output:
+    with open('output-a.txt', 'w', newline="", encoding='utf-8') as output:
         writer = csv.writer(output, delimiter='\t')
 
         # Write starting information on the new file
@@ -131,6 +131,88 @@ async def main(path: str, start: int) -> None:
 
                     # Adding the 'Statistics' columns to the end
                     + [word_row[index] for index, val in enumerate(columns) if 'Statistics' in val]
+                )
+
+
+async def manual(word_set: set[str]) -> None:
+    print(f'Manual extraction for {f.MAGENTA + str(len(word_set)) + f.RESET} words')
+
+    words = {re.sub(r'^(([dD][eE][rR])|([dD][iI][eE])|([dD][aA][sS]) )|^( *sich )', '', word).strip().lower()
+             for word in word_set}
+
+    errors_non: dict = await create_final_result(words)
+
+    # Create output file
+    with open('output-m.txt', 'w', newline="", encoding='utf-8') as output:
+        writer = csv.writer(output, delimiter='\t')
+
+        # Write column titles
+        writer.writerow([
+            'Text 1',  # ---------------------------------------------------------------- German word
+            'Text 2',  # ---------------------------------------------------------------- Persian meaning
+            'Text 3',  # ---------------------------------------------------------------- Artikel
+            'Text 4',  # ---------------------------------------------------------------- No artikel
+            'Text 5',  # ---------------------------------------------------------------- Word role in brackets
+            'Text 6',  # ---------------------------------------------------------------- Plural form if exist
+            'Text 7',  # ---------------------------------------------------------------- Conjugation
+
+            'Category 1',  # ------------------------------------------------------------ Source of the word
+            'Category 2',  # ------------------------------------------------------------ Word role
+
+            'Statistics 1',  # ---------------------------------------------------------- German to persian data
+            'Statistics 2',  # ---------------------------------------------------------- Persian to german data
+            'Statistics 3',  # ---------------------------------------------------------- Der-Die-Das data
+            'Statistics 4',  # ---------------------------------------------------------- Conjugation data
+        ])
+
+        # Write newly extracted data to the file
+        for word_str in errors_non.copy():
+            data_list = errors_non.pop(word_str)
+
+            # Iterate through different roles of the word
+            for data in data_list:
+                data: Word
+
+                # Initialising string for 'Text 2'
+                text_2 = '<head><meta charset="UTF-8"><title></title></head><body>'
+                text_2 += '<table style="width: 100%; border: 2px solid black;border-radius: 10px"><tbody>'
+                for meaning in [meaning_data.meaning for meaning_data in data.meaning_data]:
+                    text_2 += '<tr><td style="border-bottom: 1px solid black">'
+                    text_2 += f'{meaning.primary}' \
+                              f'{"<small> (" + meaning.secondary + ")</small>" if meaning.secondary else ""}'
+                    text_2 += '</td></tr>'
+                text_2 += '</tbody></table></body>'
+
+                # Initialising string for 'Text 3'
+                if data.role == 'اسم':
+                    text_3 = re.match(r'^([dD][eE][rR])|([dD][iI][eE])|([dD][aA][sS]) ', data.deutsch).group(0).strip()
+                else:
+                    text_3 = ''
+
+                # Initialising string for 'Text 4'
+                text_4 = re.sub(r'^([dD][eE][rR])|([dD][iI][eE])|([dD][aA][sS]) ', '',
+                                data.deutsch).strip() if data.role == 'اسم' else ''
+
+                # Initialising string for 'Text 7'
+                if data.role == 'فعل':
+                    text_7 = data.conjugation_html
+                else:
+                    text_7 = ''
+
+                writer.writerow(
+                    [
+                        data.deutsch,  # ------------------------------------------------ Text 1
+                        text_2,  # ------------------------------------------------------ Text 2
+                        text_3,  # ------------------------------------------------------ Text 3
+                        text_4,  # ------------------------------------------------------ Text 4
+                        f'[{data.role}]',  # -------------------------------------------- Text 5
+                        data.plural if data.plural else '',  # -------------------------- Text 6
+                        text_7,  # ------------------------------------------------------ Text 7
+
+                        None,  # -------------------------------------------------------- Category 1 (Unchanged)
+                        data.role,  # --------------------------------------------------- Category 2
+
+                    ]
                 )
 
 
@@ -477,6 +559,9 @@ async def create_final_result(words: set[str]):
 
 
 if __name__ == '__main__':
-    file_path = sys.argv[1] if len(sys.argv) > 1 else input('Please write the file name or its path: ')
-    start_row = int(sys.argv[2]) if len(sys.argv) > 2 else int(input('Please insert the starting row number: '))
-    asyncio.run(main(path=file_path, start=start_row - 1))
+    if sys.argv[1] != '-m':
+        file_path = sys.argv[1] if len(sys.argv) > 1 else input('Please write the file name or its path: ')
+        start_row = int(sys.argv[2]) if len(sys.argv) > 2 else int(input('Please insert the starting row number: '))
+        asyncio.run(auto(path=file_path, start=start_row - 1))
+    else:
+        asyncio.run(manual(set(sys.argv[2:])))
