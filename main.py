@@ -307,9 +307,12 @@ async def find_word(word: str, org_word=None) -> dict:
                 word_data.role = row.select_one("div > div > div > span").text.strip()[1:-1]
 
                 # Adding verb conjugation
-                if word_data.role == 'فعل':
-                    word_data.conjugation_html = await verb_conjugation(
-                        org_word, row.select_one('div > div > div > div.mx-n2.pt-2.mb-amp-3').find('a')['href'])
+                try:
+                    if word_data.role == 'فعل':
+                        word_data.conjugation_html = await verb_conjugation(
+                            org_word, row.select_one('div > div > div > div.mx-n2.pt-2.mb-amp-3').find('a')['href'])
+                except AttributeError:
+                    pass
 
                 # Finding and adding tags
                 try:
@@ -326,6 +329,7 @@ async def find_word(word: str, org_word=None) -> dict:
                         in row.select_one("div > div > div > div.text-muted")
                         if item.text.strip()[1:-1])}
 
+                    # The plural form of the noun
                     try:
                         word_data.plural = word_data.extra.pop('جمع')
                     except KeyError:
