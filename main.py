@@ -114,24 +114,24 @@ async def main(path: str, start: int) -> None:
                 else:
                     text_7 = ''
 
-            writer.writerow(
-                [
-                    data.deutsch,  # ------------------------------------------------ Text 1
-                    text_2,  # ------------------------------------------------------ Text 2
-                    text_3,  # ------------------------------------------------------ Text 3
-                    text_4,  # ------------------------------------------------------ Text 4
-                    f'[{data.role}]',  # -------------------------------------------- Text 5
-                    data.plural if data.plural else '',  # -------------------------- Text 6
-                    text_7,  # ------------------------------------------------------ Text 7
+                writer.writerow(
+                    [
+                        data.deutsch,  # ------------------------------------------------ Text 1
+                        text_2,  # ------------------------------------------------------ Text 2
+                        text_3,  # ------------------------------------------------------ Text 3
+                        text_4,  # ------------------------------------------------------ Text 4
+                        f'[{data.role}]',  # -------------------------------------------- Text 5
+                        data.plural if data.plural else '',  # -------------------------- Text 6
+                        text_7,  # ------------------------------------------------------ Text 7
 
-                    word_row[columns.index('Category 1')],  # ----------------------- Category 1 (Unchanged)
-                    data.role,  # --------------------------------------------------- Category 2
+                        word_row[columns.index('Category 1')],  # ----------------------- Category 1 (Unchanged)
+                        data.role,  # --------------------------------------------------- Category 2
 
-                ]
+                    ]
 
-                # Adding the 'Statistics' columns to the end
-                + [word_row[index] for index, val in enumerate(columns) if 'Statistics' in val]
-            )
+                    # Adding the 'Statistics' columns to the end
+                    + [word_row[index] for index, val in enumerate(columns) if 'Statistics' in val]
+                )
 
 
 async def find_word(word: str, org_word=None) -> dict:
