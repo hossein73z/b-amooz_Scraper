@@ -1,219 +1,145 @@
 import asyncio
-import csv
 import datetime
 import re
 import sys
 
+import pandas as pd
 from bs4 import BeautifulSoup, Tag, NavigableString
 from colorama import Fore as f
 from httpx import AsyncClient
+from pandas import DataFrame
 
 from Word import Word
 
 
-async def auto(path: str, start: int) -> None:
-    print(f'The file path is: {f.MAGENTA + path + f.RESET}')
-    print(f'First word at row {f.MAGENTA + str(start + 1) + f.RESET}')
+async def main(path: str | None = None, start: int | None = None, word_set: set[str] = None) -> None:
+    data_df = DataFrame()
 
-    # Create a list of rows
-    rows = []
-    # Create a list of rows
-    columns = []
+    if not path:
+        print(f'Manual extraction for {f.MAGENTA + str(len(word_set)) + f.RESET} words')
 
-    # Create a set of words
-    words = set()
-
-    # Opening the TSV file
-    with open(path, 'r', newline="", encoding='utf-8') as file:
-        reader = csv.reader(file, delimiter='\t')
-
-        temp_word_set = set()  # Create a set to remove duplicate stripped words
-        for index, row in enumerate(reader):  # Iterating through the rows of the file
-            rows.append(row)
-
-            if index == start - 1:
-                columns = row
-
-            if index >= start:
-                # Store stripped word string in a temporary variable
-                temp_word = re.sub(r'^(([dD][eE][rR])|([dD][iI][eE])|([dD][aA][sS]) )|^( *sich )', '',
-                                   row[0]).strip().lower()
-
-                if temp_word not in temp_word_set:
-                    temp_word_set.add(temp_word)
-                    words.add(row[0].lower())
-
-    errors_non: dict = await create_final_result(words)
-
-    # Create output file
-    with open('output-a.txt', 'w', newline="", encoding='utf-8') as output:
-        writer = csv.writer(output, delimiter='\t')
-
-        # Write starting information on the new file
-        writer.writerows(rows[0:start - 1])
-
-        # Write column titles
-        writer.writerow([
-            'Text 1',  # ---------------------------------------------------------------- German word
-            'Text 2',  # ---------------------------------------------------------------- Persian meaning
-            'Text 3',  # ---------------------------------------------------------------- Artikel
-            'Text 4',  # ---------------------------------------------------------------- No artikel
-            'Text 5',  # ---------------------------------------------------------------- Word role in brackets
-            'Text 6',  # ---------------------------------------------------------------- Plural form if exist
-            'Text 7',  # ---------------------------------------------------------------- Conjugation
-
-            'Category 1',  # ------------------------------------------------------------ Source of the word
-            'Category 2',  # ------------------------------------------------------------ Word role
-
-            'Statistics 1',  # ---------------------------------------------------------- German to persian data
-            'Statistics 2',  # ---------------------------------------------------------- Persian to german data
-            'Statistics 3',  # ---------------------------------------------------------- Der-Die-Das data
-            'Statistics 4',  # ---------------------------------------------------------- Conjugation data
+        df = DataFrame(columns=[
+            'Text 1', 'Text 2', 'Text 3', 'Text 4', 'Text 5', 'Text 6', 'Text 7', 'Category 1', 'Category 2'
         ])
 
-        # Write newly extracted data to the file
-        for word_row in rows[start:]:
-            word_row += [None for _ in range(len(columns) - len(word_row))]
+        words = {re.sub(r'^(([dD][eE][rR])|([dD][iI][eE])|([dD][aA][sS]) )|^( *sich )', '', word).strip().lower()
+                 for word in word_set}
 
-            try:
-                # Extract word data from dictionary
-                data_list = errors_non.pop(word_row[0].lower())
+    else:
+        print(f'The file path is: {f.MAGENTA + path + f.RESET}')
 
-            except KeyError as key_error:
-                # Go for the next word if the key doesn't exist
-                print("main: Key error: " + f.RED + str(key_error) + f.RESET)
-                continue
+        # Opening the TSV file
+        df = pd.read_excel(path, header=None)
 
-            # Iterate through different roles of the word
-            for data in data_list:
-                data: Word
+        # Create DataFrame of column names
+        column_names: DataFrame = df.iloc[start - 2].values[0].tolist() if start \
+            else df.loc[(df[0] == 'Text 1') & (df[1] == 'Text 2')]
 
-                # Initialising string for 'Text 2'
-                text_2 = '<head><meta charset="UTF-8"><title></title></head><body>'
-                text_2 += '<table style="width: 100%; border: 2px solid black;border-radius: 10px"><tbody>'
-                for meaning in [meaning_data.meaning for meaning_data in data.meaning_data]:
-                    text_2 += '<tr><td style="border-bottom: 1px solid black">'
-                    text_2 += f'{meaning.primary}' \
-                              f'{"<small> (" + meaning.secondary + ")</small>" if meaning.secondary else ""}'
-                    text_2 += '</td></tr>'
-                text_2 += '</tbody></table></body>'
+        # Set column names
+        df.columns = column_names.values[0].tolist()
 
-                # Initialising string for 'Text 3'
-                if data.role == 'اسم':
-                    text_3 = re.match(r'^([dD][eE][rR])|([dD][iI][eE])|([dD][aA][sS]) ', data.deutsch).group(0).strip()
-                else:
-                    text_3 = ''
+        # First word row index
+        start = column_names.index.item() + 1
 
-                # Initialising string for 'Text 4'
-                text_4 = re.sub(r'^([dD][eE][rR])|([dD][iI][eE])|([dD][aA][sS]) ', '',
-                                data.deutsch).strip() if data.role == 'اسم' else ''
+        print(f'First word at row {f.MAGENTA + str(start + 1) + f.RESET}')
 
-                # Initialising string for 'Text 7'
-                if data.role == 'فعل':
-                    text_7 = data.conjugation_html
-                else:
-                    text_7 = ''
+        # Create DataFrame of words and their data
+        data_df: DataFrame = DataFrame(df.tail(len(df) - start)).reset_index(drop=True)
 
-                writer.writerow(
-                    [
-                        data.deutsch,  # ------------------------------------------------ Text 1
-                        text_2,  # ------------------------------------------------------ Text 2
-                        text_3,  # ------------------------------------------------------ Text 3
-                        text_4,  # ------------------------------------------------------ Text 4
-                        f'[{data.role}]',  # -------------------------------------------- Text 5
-                        data.plural if data.plural else '',  # -------------------------- Text 6
-                        text_7,  # ------------------------------------------------------ Text 7
+        # Create a set of word from DataFrame
+        words = set(data_df['Text 1'])
 
-                        word_row[columns.index('Category 1')],  # ----------------------- Category 1 (Unchanged)
-                        data.role,  # --------------------------------------------------- Category 2
-
-                    ]
-
-                    # Adding the 'Statistics' columns to the end
-                    + [word_row[index] for index, val in enumerate(columns) if 'Statistics' in val]
-                )
-
-
-async def manual(word_set: set[str]) -> None:
-    print(f'Manual extraction for {f.MAGENTA + str(len(word_set)) + f.RESET} words')
-
-    words = {re.sub(r'^(([dD][eE][rR])|([dD][iI][eE])|([dD][aA][sS]) )|^( *sich )', '', word).strip().lower()
-             for word in word_set}
-
+    # Waiting for data to be extracted
     errors_non: dict = await create_final_result(words)
 
-    # Create output file
-    with open('output-m.txt', 'w', newline="", encoding='utf-8') as output:
-        writer = csv.writer(output, delimiter='\t')
+    # Create a python list to hold newly extracted data as rows
+    new_rows = []
 
-        # Write column titles
-        writer.writerow([
-            'Text 1',  # ---------------------------------------------------------------- German word
-            'Text 2',  # ---------------------------------------------------------------- Persian meaning
-            'Text 3',  # ---------------------------------------------------------------- Artikel
-            'Text 4',  # ---------------------------------------------------------------- No artikel
-            'Text 5',  # ---------------------------------------------------------------- Word role in brackets
-            'Text 6',  # ---------------------------------------------------------------- Plural form if exist
-            'Text 7',  # ---------------------------------------------------------------- Conjugation
+    # Manipulating row list with newly extracted
+    for word_str in words:
+        word_row: DataFrame = data_df.loc[data_df['Text 1'] == word_str].head(1) if path else None
 
-            'Category 1',  # ------------------------------------------------------------ Source of the word
-            'Category 2',  # ------------------------------------------------------------ Word role
+        try:
+            # Extract word data from dictionary
+            data_list: list[Word] = errors_non.pop(word_str)
 
-            'Statistics 1',  # ---------------------------------------------------------- German to persian data
-            'Statistics 2',  # ---------------------------------------------------------- Persian to german data
-            'Statistics 3',  # ---------------------------------------------------------- Der-Die-Das data
-            'Statistics 4',  # ---------------------------------------------------------- Conjugation data
-        ])
+        except KeyError as key_error:
+            # Go for the next word if the key doesn't exist
+            print("main: Key error: " + f.RED + str(key_error) + f.RESET)
+            continue
 
-        # Write newly extracted data to the file
-        for word_str in errors_non.copy():
-            data_list = errors_non.pop(word_str)
+        # Iterate through different roles of the word
+        for data in data_list:
 
-            # Iterate through different roles of the word
-            for data in data_list:
-                data: Word
+            # Initialising string for 'Text 2'
+            text_2 = '<head><meta charset="UTF-8"><title></title></head><body>'
+            text_2 += '<table style="width: 100%; border: 2px solid black;border-radius: 10px"><tbody>'
+            for meaning in [meaning_data.meaning for meaning_data in data.meaning_data]:
+                text_2 += '<tr><td style="border-bottom: 1px solid black">'
+                text_2 += f'{meaning.primary}' \
+                          f'{"<small> (" + meaning.secondary + ")</small>" if meaning.secondary else ""}'
+                text_2 += '</td></tr>'
+            text_2 += '</tbody></table></body>'
 
-                # Initialising string for 'Text 2'
-                text_2 = '<head><meta charset="UTF-8"><title></title></head><body>'
-                text_2 += '<table style="width: 100%; border: 2px solid black;border-radius: 10px"><tbody>'
-                for meaning in [meaning_data.meaning for meaning_data in data.meaning_data]:
-                    text_2 += '<tr><td style="border-bottom: 1px solid black">'
-                    text_2 += f'{meaning.primary}' \
-                              f'{"<small> (" + meaning.secondary + ")</small>" if meaning.secondary else ""}'
-                    text_2 += '</td></tr>'
-                text_2 += '</tbody></table></body>'
+            # Initialising string for 'Text 3'
+            if data.role == 'اسم':
+                text_3 = re.match(r'^([dD][eE][rR])|([dD][iI][eE])|([dD][aA][sS]) ', data.deutsch).group(0).strip()
+            else:
+                text_3 = ''
 
-                # Initialising string for 'Text 3'
-                if data.role == 'اسم':
-                    text_3 = re.match(r'^([dD][eE][rR])|([dD][iI][eE])|([dD][aA][sS]) ', data.deutsch).group(0).strip()
-                else:
-                    text_3 = ''
+            # Initialising string for 'Text 4'
+            text_4 = re.sub(r'^([dD][eE][rR])|([dD][iI][eE])|([dD][aA][sS]) ', '',
+                            data.deutsch).strip() if data.role == 'اسم' else ''
 
-                # Initialising string for 'Text 4'
-                text_4 = re.sub(r'^([dD][eE][rR])|([dD][iI][eE])|([dD][aA][sS]) ', '',
-                                data.deutsch).strip() if data.role == 'اسم' else ''
+            # Initialising string for 'Text 7'
+            if data.role == 'فعل':
+                text_7 = data.conjugation_html
+            else:
+                text_7 = ''
 
-                # Initialising string for 'Text 7'
-                if data.role == 'فعل':
-                    text_7 = data.conjugation_html
-                else:
-                    text_7 = ''
+            # Initialising string for 'Category 1'
+            category_1 = word_row['Category 1'].item() if path else None
 
-                writer.writerow(
-                    [
-                        data.deutsch,  # ------------------------------------------------ Text 1
-                        text_2,  # ------------------------------------------------------ Text 2
-                        text_3,  # ------------------------------------------------------ Text 3
-                        text_4,  # ------------------------------------------------------ Text 4
-                        f'[{data.role}]',  # -------------------------------------------- Text 5
-                        data.plural if data.plural else '',  # -------------------------- Text 6
-                        text_7,  # ------------------------------------------------------ Text 7
+            row_dict = {
+                'Text 1': data.deutsch,  # -------------------------------------- Text 1
+                'Text 2': text_2,  # -------------------------------------------- Text 2
+                'Text 3': text_3,  # -------------------------------------------- Text 3
+                'Text 4': text_4,  # -------------------------------------------- Text 4
+                'Text 5': f'[{data.role}]',  # ---------------------------------- Text 5
+                'Text 6': data.plural if data.plural else '',  # ---------------- Text 6
+                'Text 7': text_7,  # -------------------------------------------- Text 7
 
-                        None,  # -------------------------------------------------------- Category 1 (Unchanged)
-                        data.role,  # --------------------------------------------------- Category 2
+                'Category 1': category_1,  # ------------------------------------ Category 1 (Unchanged)
+                'Category 2': data.role,  # ------------------------------------- Category 2
+            }
 
-                    ]
+            # Adding the 'Statistics' columns values
+            if path:
+                row_dict.update(
+                    {
+                        col_name: word_row[col_name].item()
+                        for col_name in word_row
+                        if 'Statistics' in col_name
+                    }
                 )
+
+            # Adding new row do row list
+            new_rows.append(row_dict)
+
+    # Create output DataFrame
+    out_df = pd.concat(
+        [
+            DataFrame(df.head(start)),
+            DataFrame(new_rows, columns=df.columns).sort_values(['Category 1', 'Text 1'])
+        ]
+    ) if path else DataFrame(new_rows).sort_values(['Text 1'])
+
+    out_df.reset_index(drop=True)
+
+    # Create output file
+    output_name = 'output-a.xlsx' if path else 'output-m.xlsx'
+    with pd.ExcelWriter(output_name) as writer:
+        out_df.to_excel(writer, 'Sheet1', header=False, index=False)
 
 
 async def find_word(word: str, org_word=None) -> dict:
@@ -254,8 +180,8 @@ async def find_word(word: str, org_word=None) -> dict:
 
             if notes:
                 result = notes
-        except Exception as error:
-            print(f"word_data['notes']: {f.YELLOW + str(error) + f.RESET}")
+        except Exception as exception:
+            print(f"word_data['notes']: {f.YELLOW + str(exception) + f.RESET}")
 
         return result
 
@@ -276,8 +202,8 @@ async def find_word(word: str, org_word=None) -> dict:
         # Find container for word data
         container: list[Tag] = [child for child in soup.find(class_="container mt-2") if type(child) != NavigableString]
 
-    except Exception as e:
-        print(f"{f.MAGENTA + word + f.RESET}: {f.RED + str(e) + f.RESET}")
+    except Exception as error:
+        print(f"{f.MAGENTA + word + f.RESET}: {f.RED + str(error) + f.RESET}")
         return {org_word: None}
 
     # Divide list of rows by their role
@@ -319,8 +245,8 @@ async def find_word(word: str, org_word=None) -> dict:
                     word_data.tags = [item.text.strip() for item in
                                       row.find_all(class_="badge-pill badge-light ml-1")
                                       if item.text.strip()]
-                except Exception as e:
-                    print(f"{f.MAGENTA + word + f.RESET}: word_data['tags']: {f.YELLOW + str(e) + f.RESET}")
+                except Exception as error:
+                    print(f"{f.MAGENTA + word + f.RESET}: word_data['tags']: {f.YELLOW + str(error) + f.RESET}")
 
                 # Finding and adding extra data
                 try:
@@ -375,8 +301,8 @@ async def verb_conjugation(verb: str, url: str) -> str | None:
         present_table = soup.select_one("div > div:nth-child(1) > div > div:nth-child(1) > table")
         past_table = soup.select_one("div > div:nth-child(1) > div > div:nth-child(3) > table")
 
-    except Exception as e:
-        print(f"{f.MAGENTA + verb + f.RESET}: {f.RED + str(e) + f.RESET}")
+    except Exception as error:
+        print(f"{f.MAGENTA + verb + f.RESET}: {f.RED + str(error) + f.RESET}")
         return None
 
     # Read the template file
@@ -413,20 +339,20 @@ async def verb_conjugation(verb: str, url: str) -> str | None:
     try:
         # Placing main data to html template
         html = html.replace(">infinitive<", f">{info['مصدر']}<")
-    except Exception as e:
-        print(f"{f.MAGENTA + verb + f.RESET} verb: {f.RED + str(e) + f.RESET}")
+    except Exception as error:
+        print(f"{f.MAGENTA + verb + f.RESET} verb: {f.RED + str(error) + f.RESET}")
 
     try:
         # Placing main data to html template
         html = html.replace(">past<", f">{info['گذشته']}<")
-    except Exception as e:
-        print(f"{f.MAGENTA + verb + f.RESET} verb: {f.RED + str(e) + f.RESET}")
+    except Exception as error:
+        print(f"{f.MAGENTA + verb + f.RESET} verb: {f.RED + str(error) + f.RESET}")
 
     try:
         # Placing main data to html template
         html = html.replace(">third_state<", f">{info['حالت سوم فعل']}<")
-    except Exception as e:
-        print(f"{f.MAGENTA + verb + f.RESET} verb: {f.RED + str(e) + f.RESET}")
+    except Exception as error:
+        print(f"{f.MAGENTA + verb + f.RESET} verb: {f.RED + str(error) + f.RESET}")
 
     # Return result
     return html
@@ -537,7 +463,6 @@ async def create_final_result(words: set[str]):
         confirmation = input("Do you want to retry the words with network problem? (y/n) ")
         while True:
             if confirmation in ('y', "Y"):
-                print(f.YELLOW + 'Retrying failed attempts ...' + f.RESET)
                 corrected_dicts = await correct_errors(errors_net, errors_type='net')
                 errors_non.update(corrected_dicts['errors_non'])
                 errors_404.update(corrected_dicts['errors_404'])
@@ -563,9 +488,11 @@ async def create_final_result(words: set[str]):
 
 
 if __name__ == '__main__':
-    if sys.argv[1] != '-m':
-        file_path = sys.argv[1] if len(sys.argv) > 1 else input('Please write the file name or its path: ')
-        start_row = int(sys.argv[2]) if len(sys.argv) > 2 else int(input('Please insert the starting row number: '))
-        asyncio.run(auto(path=file_path, start=start_row - 1))
-    else:
-        asyncio.run(manual(set(sys.argv[2:])))
+    if len(sys.argv) >= 2:
+        if sys.argv[1] == '-m':
+            asyncio.run(main(word_set=set(sys.argv[2:])))
+
+        else:
+            file_path = sys.argv[1] if len(sys.argv) > 1 else input('Please write the file name or its path: ')
+            start_row = int(sys.argv[2]) if len(sys.argv) > 2 else None
+            asyncio.run(main(path=file_path, start=int(start_row - 1) if start_row else None))
