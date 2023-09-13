@@ -22,7 +22,7 @@ async def main(path: str | None = None, start: int | None = None, word_set: set[
             'Text 1', 'Text 2', 'Text 3', 'Text 4', 'Text 5', 'Text 6', 'Text 7', 'Category 1', 'Category 2'
         ])
 
-        words = {re.sub(r'^(([dD][eE][rR])|([dD][iI][eE])|([dD][aA][sS]) )|^( *sich )', '', word).strip().lower()
+        words = {re.sub(r'^(([dD][eE][rR] )|([dD][iI][eE] )|([dD][aA][sS] ))|^( *sich )', '', word).strip().lower()
                  for word in word_set}
 
     else:
@@ -83,12 +83,12 @@ async def main(path: str | None = None, start: int | None = None, word_set: set[
 
             # Initialising string for 'Text 3'
             if data.role == 'اسم':
-                text_3 = re.match(r'^([dD][eE][rR])|([dD][iI][eE])|([dD][aA][sS]) ', data.deutsch).group(0).strip()
+                text_3 = re.match(r'^([dD][eE][rR] )|([dD][iI][eE] )|([dD][aA][sS] )', data.deutsch).group(0).strip()
             else:
                 text_3 = ''
 
             # Initialising string for 'Text 4'
-            text_4 = re.sub(r'^([dD][eE][rR])|([dD][iI][eE])|([dD][aA][sS]) ', '',
+            text_4 = re.sub(r'^([dD][eE][rR] )|([dD][iI][eE] )|([dD][aA][sS] )', '',
                             data.deutsch).strip() if data.role == 'اسم' else ''
 
             # Initialising string for 'Text 7'
@@ -187,7 +187,7 @@ async def find_word(word: str, org_word=None) -> dict:
 
     # Cut the article from the beginning of the string
     org_word = org_word if org_word else word
-    word = re.sub(r'^(([dD][eE][rR])|([dD][iI][eE])|([dD][aA][sS]) )|( *sich )', '', word).strip().lower()
+    word = re.sub(r'^(([dD][eE][rR] )|([dD][iI][eE] )|([dD][aA][sS] ))|( *sich )', '', word).strip().lower()
 
     try:
         # Retrieve and parse data from https://b-amooz.com
@@ -344,13 +344,13 @@ async def verb_conjugation(verb: str, url: str) -> str | None:
 
     try:
         # Placing main data to html template
-        html = html.replace(">past<", f">{info['گذشته']}<")
+        html = html.replace("[Präteritum]", f"{info['گذشته']}")
     except Exception as error:
         print(f"{f.MAGENTA + verb + f.RESET} verb: {f.RED + str(error) + f.RESET}")
 
     try:
         # Placing main data to html template
-        html = html.replace(">third_state<", f">{info['حالت سوم فعل']}<")
+        html = html.replace("[perfekt]", f"{info['حالت سوم فعل']}")
     except Exception as error:
         print(f"{f.MAGENTA + verb + f.RESET} verb: {f.RED + str(error) + f.RESET}")
 
@@ -370,7 +370,7 @@ async def correct_errors(words: set[str], errors_type: str = '404', retry: int =
     corrected_dict = {}
     if errors_type == '404':
         for i, org_word in enumerate(words):
-            word = re.sub(r'^([dD][eE][rR])|([dD][iI][eE])|([dD][aA][sS]) ', '', org_word).strip().lower()
+            word = re.sub(r'^([dD][eE][rR] )|([dD][iI][eE] )|([dD][aA][sS] )', '', org_word).strip().lower()
 
             corrected_word = input(
                 f'{i + 1}. Insert the correct form of {f.MAGENTA + word + f.RESET}. Type "c" to skip: ')
