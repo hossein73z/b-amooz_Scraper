@@ -18,9 +18,7 @@ async def main(path: str | None = None, start: int | None = None, word_set: set[
     if not path:
         print(f'Manual extraction for {f.MAGENTA + str(len(word_set)) + f.RESET} words')
 
-        df = DataFrame(columns=[
-            'Text 1', 'Text 2', 'Text 3', 'Text 4', 'Text 5', 'Text 6', 'Text 7', 'Category 1', 'Category 2'
-        ])
+        df = DataFrame(columns=['Text 1', 'Text 2', 'Text 3', 'Text 4', 'Text 5', 'Text 6', 'Category 1', 'Category 2'])
 
         words = {re.sub(r'^(([dD][eE][rR] )|([dD][iI][eE] )|([dD][aA][sS] ))|^( *sich )', '', word).strip().lower()
                  for word in word_set}
@@ -91,11 +89,13 @@ async def main(path: str | None = None, start: int | None = None, word_set: set[
             text_4 = re.sub(r'^([dD][eE][rR] )|([dD][iI][eE] )|([dD][aA][sS] )', '',
                             data.deutsch).strip() if data.role == 'اسم' else ''
 
-            # Initialising string for 'Text 7'
-            if data.role == 'فعل':
-                text_7 = data.conjugation_html
+            # Initialising string for 'Text 5'
+            if data.plural:
+                text_5 = data.plural
+            elif data.role == 'فعل':
+                text_5 = data.conjugation_html
             else:
-                text_7 = ''
+                text_5 = ''
 
             # Initialising string for 'Category 1'
             category_1 = word_row['Category 1'].item() if path else None
@@ -105,9 +105,7 @@ async def main(path: str | None = None, start: int | None = None, word_set: set[
                 'Text 2': text_2,  # -------------------------------------------- Text 2
                 'Text 3': text_3,  # -------------------------------------------- Text 3
                 'Text 4': text_4,  # -------------------------------------------- Text 4
-                'Text 5': f'[{data.role}]',  # ---------------------------------- Text 5
-                'Text 6': data.plural if data.plural else '',  # ---------------- Text 6
-                'Text 7': text_7,  # -------------------------------------------- Text 7
+                'Text 5': text_5,  # -------------------------------------------- Text 5
 
                 'Category 1': category_1,  # ------------------------------------ Category 1 (Unchanged)
                 'Category 2': data.role,  # ------------------------------------- Category 2
