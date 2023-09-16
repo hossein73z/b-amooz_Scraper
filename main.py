@@ -4,6 +4,7 @@ import re
 import sys
 
 import pandas as pd
+import pyperclip
 from bs4 import BeautifulSoup, Tag, NavigableString
 from colorama import Fore as f
 from httpx import AsyncClient
@@ -72,10 +73,10 @@ async def main(path: str | None = None, start: int | None = None, word_set: set[
             # Initialising string for 'Text 2'
             text_2 = '<head><meta charset="UTF-8"><title></title></head><body>'
             text_2 += '<table style="width: 100%; border: 2px solid black;border-radius: 10px"><tbody>'
-            for meaning in [meaning_data.meaning for meaning_data in data.meaning_data]:
-                text_2 += '<tr><td style="border-bottom: 1px solid black">'
-                text_2 += f'{meaning.primary}' \
-                          f'{"<small> (" + meaning.secondary + ")</small>" if meaning.secondary else ""}'
+            for meaning_data in [meaning_data.meaning for meaning_data in data.meaning_data]:
+                text_2 += '<tr><td style="border-bottom: 1px solid black; font-size: 20px">'
+                text_2 += f'{meaning_data.primary}' \
+                          f'{"<small> (" + meaning_data.secondary + ")</small>" if meaning_data.secondary else ""}'
                 text_2 += '</td></tr>'
             text_2 += '</tbody></table></body>'
 
@@ -86,29 +87,47 @@ async def main(path: str | None = None, start: int | None = None, word_set: set[
                 text_3 = ''
 
             # Initialising string for 'Text 4'
-            text_4 = re.sub(r'^([dD][eE][rR] )|([dD][iI][eE] )|([dD][aA][sS] )', '',
+            text_4 = re.sub(r'^([dD][eE][rR] )|([dD][iI][eE] )|([dD][aA][sS] )',
+                            '',
                             data.deutsch).strip() if data.role == 'اسم' else ''
 
             # Initialising string for 'Text 5'
+            text_5 = '<head><meta charset="UTF-8"><title></title></head><body>'
+            for meaning_data in data.meaning_data:
+                meaning = meaning_data.meaning
+                caption = f'{meaning.primary}'
+                caption += f'<small> ({meaning.secondary})</small>' if meaning.secondary else ""
+                text_5 += '<table style="width: 100%; border: 2px solid black;border-top :0;border-radius: 0 0 10px 10px;">'
+                text_5 += f'<caption style="border: 2px solid black; border-bottom: 2px dashed black; border-radius: 10px 10px 0 0; padding: 5px"><strong>{caption}</strong></caption><tbody>'
+                for deutsch, persisch in meaning_data.examples.items():
+                    text_5 += '<tr><td style="border-bottom: 1px solid black; align-items: center">'
+                    text_5 += f'<div dir="ltr" style="font-size: 20px">{deutsch}</div>'
+                    text_5 += f'<div dir="rtl" style="font-size: 20px">{persisch}</div>'
+                    text_5 += '</td></tr>'
+                text_5 += '</tbody></table><br>'
+            text_5 += '</body>'
+
+            # Initialising string for 'Text 6'
             if data.plural:
-                text_5 = data.plural
+                text_6 = data.plural
             elif data.role == 'فعل':
-                text_5 = data.conjugation_html
+                text_6 = data.conjugation_html
             else:
-                text_5 = ''
+                text_6 = ''
 
             # Initialising string for 'Category 1'
             category_1 = word_row['Category 1'].item() if path else None
 
             row_dict = {
-                'Text 1': data.deutsch,  # -------------------------------------- Text 1
-                'Text 2': text_2,  # -------------------------------------------- Text 2
-                'Text 3': text_3,  # -------------------------------------------- Text 3
-                'Text 4': text_4,  # -------------------------------------------- Text 4
-                'Text 5': text_5,  # -------------------------------------------- Text 5
+                'Text 1': data.deutsch,  # ----------------------- Text 1 --> The word in German
+                'Text 2': text_2,  # ----------------------------- Text 2 --> Meanings of the word in html
+                'Text 3': text_3,  # ----------------------------- Text 3 --> Der Die Das for names of empty
+                'Text 4': text_4,  # ----------------------------- Text 4 --> Name without artikel or empty
+                'Text 5': text_5,  # ----------------------------- Text 5 --> Examples in html
+                'Text 6': text_6,  # ----------------------------- Text 6 --> Names plural form or verb conjugation
 
-                'Category 1': category_1,  # ------------------------------------ Category 1 (Unchanged)
-                'Category 2': data.role,  # ------------------------------------- Category 2
+                'Category 1': category_1,  # ----------------- Category 1 --> Source of the word (Unchanged)
+                'Category 2': data.role,  # ------------------ Category 2 --> Role of the word
             }
 
             # Adding the 'Statistics' columns values
