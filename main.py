@@ -4,7 +4,6 @@ import re
 import sys
 
 import pandas as pd
-import pyperclip
 from bs4 import BeautifulSoup, Tag, NavigableString
 from colorama import Fore as f
 from httpx import AsyncClient
@@ -22,7 +21,7 @@ async def main(path: str | None = None, start: int | None = None, word_set: set[
         df = DataFrame(columns=['Text 1', 'Text 2', 'Text 3', 'Text 4', 'Text 5', 'Text 6', 'Category 1', 'Category 2'])
 
         words = {re.sub(r'^(([dD][eE][rR] )|([dD][iI][eE] )|([dD][aA][sS] ))|^( *sich )', '', word).strip().lower()
-                 for word in word_set}
+                 for word in word_set if word}
 
     else:
         print(f'The file path is: {f.MAGENTA + path + f.RESET}')
@@ -46,7 +45,7 @@ async def main(path: str | None = None, start: int | None = None, word_set: set[
         data_df: DataFrame = DataFrame(df.tail(len(df) - start)).reset_index(drop=True)
 
         # Create a set of word from DataFrame
-        words = set(data_df['Text 1'])
+        words = set(data_df.loc[data_df['Text 1'].notna()]['Text 1'])
 
     # Waiting for data to be extracted
     errors_non: dict = await create_final_result(words)
