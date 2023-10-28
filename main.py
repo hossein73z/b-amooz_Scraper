@@ -150,6 +150,8 @@ async def main(path: str | None = None, start: int | None = None, word_set: set[
         ]
     ) if path else DataFrame(new_rows).sort_values(['Text 1'])
 
+    out_df = out_df.drop_duplicates()
+
     out_df.reset_index(drop=True)
 
     # Create output file
